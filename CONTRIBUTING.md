@@ -10,7 +10,7 @@ We welcome contributions to the AIOutlet Auth Service project! By contributing, 
 
    ```sh
    git clone https://github.com/your-username/auth-service.git
-   cd DevCamper
+   cd auth-service
    ```
 
 2. **Create a branch:**
