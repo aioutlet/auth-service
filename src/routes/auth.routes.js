@@ -9,16 +9,11 @@ const router = express.Router();
 
 // Local login
 router.post('/login', authController.login);
-// Protected logout with CSRF protection
 router.post('/logout', authMiddleware, requireCsrfToken, authController.logout);
-// Token refresh
 router.post('/token/refresh', refreshTokenMiddleware, authController.refreshToken);
-// Unprotected forgot/reset password
 router.post('/password/forgot', authController.forgotPassword);
 router.post('/password/reset', authController.resetPassword);
-// Protected change password (renamed to password/change)
 router.post('/password/change', authMiddleware, authController.changePassword);
-// Email verification
 router.get('/email/verify', authController.verifyEmail);
 
 // Social login

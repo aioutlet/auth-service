@@ -184,12 +184,13 @@ export const resetPassword = asyncHandler(async (req, res) => {
 
 /**
  * @desc    Change password for authenticated user
- * @route   POST /auth/changePassword
+ * @route   POST /auth/password/change
  * @access  Private
  * @role    User
  */
 export const changePassword = asyncHandler(async (req, res) => {
   const { oldPassword, newPassword } = req.body;
+  logger.info(`old password: ${oldPassword}, new password: ${newPassword}`);
 
   const userId = req.user?.id;
   if (!userId) return res.status(401).json({ error: 'Unauthorized' });
@@ -214,17 +215,25 @@ export const changePassword = asyncHandler(async (req, res) => {
   }
   if (!jwtToken) return res.status(401).json({ error: 'JWT missing' });
 
-  // Send plain newPassword to user service (let user-service hash and validate)
-  const resp = await fetch(`${process.env.USER_SERVICE_URL}/users/${userId}/password/change`, {
-    method: 'POST',
+  // Forward password change to user service PATCH /users with { password }
+  const resp = await fetch(`${process.env.USER_SERVICE_URL}`, {
+    method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${jwtToken}`,
     },
-    body: JSON.stringify({ oldPassword, newPassword }),
+    body: JSON.stringify({ password: newPassword }),
   });
+
+  logger.info(resp);
+
   if (!resp.ok) {
-    const err = await resp.json();
+    let err;
+    try {
+      err = await resp.json();
+    } catch {
+      err = { error: 'Unknown error from user service' };
+    }
     return res.status(resp.status).json(err);
   }
   res.json({ message: 'Password changed successfully' });
