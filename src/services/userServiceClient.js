@@ -1,0 +1,59 @@
+import fetch from 'node-fetch';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+const USER_SERVICE_URL = process.env.USER_SERVICE_URL; // e.g. http://localhost:5000/users
+
+export async function getUserByEmail(email) {
+  const url = `${USER_SERVICE_URL}/findByEmail?email=${encodeURIComponent(email)}`;
+  const res = await fetch(url);
+  if (!res.ok) return null;
+  return await res.json();
+}
+
+export async function getUserBySocial(provider, id) {
+  const url = `${USER_SERVICE_URL}/findBySocial?provider=${provider}&id=${id}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const text = await res.text();
+    console.error('getUserBySocial error:', res.status, text);
+    return null;
+  }
+  return await res.json();
+}
+
+export async function createUser(userData) {
+  const url = `${USER_SERVICE_URL}`; // POST to /users
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(userData),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    console.error('createUser error:', res.status, text);
+    return null;
+  }
+  return await res.json();
+}
+
+export async function deleteUserSelf(token) {
+  const res = await fetch(`${USER_SERVICE_URL}`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return res.status === 204;
+}
+
+export async function deleteUserById(id, token) {
+  const res = await fetch(`${USER_SERVICE_URL}/${id}`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return res.status === 204;
+}

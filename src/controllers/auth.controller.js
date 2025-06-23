@@ -1,0 +1,456 @@
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+import { signToken } from '../utils/jwt.js';
+import RefreshToken from '../models/refreshToken.model.js';
+import asyncHandler from '../middlewares/asyncHandler.js';
+import { getUserByEmail, createUser, getUserBySocial } from '../services/userServiceClient.js';
+import { sendMail } from '../utils/email.js';
+import logger from '../utils/logger.js';
+import { issueCsrfToken, requireCsrfToken } from '../middlewares/csrf.middleware.js';
+import authValidator from '../validators/auth.validator.js';
+
+/**
+ * @desc    Log in a user with email and password
+ * @route   POST /auth/login
+ * @access  Public
+ */
+export const login = asyncHandler(async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    logger.warn('Login attempt missing credentials', { email });
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
+  const user = await getUserByEmail(email);
+  console.log('Fetched user in login:', user);
+  if (!user) {
+    logger.warn('Login failed: user not found', { email });
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
+  if (user.isActive === false) {
+    logger.warn('Login failed: account deactivated', { email });
+    return res.status(403).json({ error: 'Account is deactivated.' });
+  }
+  if (!user.isEmailVerified) {
+    logger.warn('Login failed: email not verified', { email });
+    return res.status(403).json({ error: 'Please verify your email before logging in.' });
+  }
+  const isMatch = await bcrypt.compare(password, user.password);
+  if (!isMatch) {
+    logger.warn('Login failed: invalid password', { email });
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
+  logger.info('User logged in', { userId: user._id, email });
+  const token = signToken({ id: user._id, email: user.email, roles: user.roles });
+
+  // Generate and store refresh token
+  const refreshToken = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+  // Store refreshToken in DB (optional, for blacklist/revoke)
+  await RefreshToken.create({
+    user: user._id,
+    token: refreshToken,
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+  });
+
+  // Set refresh token as HTTP-only, Secure cookie
+  res.cookie('refreshToken', refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  });
+
+  // Set JWT access token as HTTP-only cookie for web clients
+  // - For web: client should NOT send Authorization header, backend reads from cookie
+  // - For mobile: client should use token from response body
+  res.cookie('jwt', token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 15 * 60 * 1000, // 15 min
+  });
+  // Issue CSRF token for web clients
+  issueCsrfToken(req, res, () => {});
+  // For mobile clients, also return JWT in response body
+  res.json({ jwt: token, user });
+});
+
+/**
+ * @desc    Log out the current user (clear cookies, revoke refresh token)
+ * @route   POST /auth/logout
+ * @access  Private
+ * @role    User
+ */
+export const logout = asyncHandler(async (req, res) => {
+  // Read refresh token from cookie
+  const refreshToken = req.cookies?.refreshToken;
+  // CSRF protection is now enforced at the route level, not here
+  if (!refreshToken) {
+    logger.warn('Logout attempt missing refresh token');
+    return res.status(400).json({ error: 'Refresh token required' });
+  }
+  await RefreshToken.deleteOne({ token: refreshToken });
+  // Clear the cookies
+  res.clearCookie('refreshToken', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+  });
+  res.clearCookie('jwt', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+  });
+  res.clearCookie('csrfToken', {
+    httpOnly: false,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+  });
+  logger.info('User logged out', { refreshToken });
+  res.json({ message: 'Logged out successfully' });
+});
+
+/**
+ * @desc    Issue a new JWT using a valid refresh token
+ * @route   POST /auth/refreshToken
+ * @access  Public
+ */
+export const refreshToken = asyncHandler(async (req, res) => {
+  const { refreshToken } = req.body;
+  if (!refreshToken) {
+    logger.warn('Refresh token missing');
+    return res.status(400).json({ error: 'Refresh token required' });
+  }
+  const stored = await RefreshToken.findOne({ token: refreshToken });
+  if (!stored || stored.expiresAt < new Date()) {
+    logger.warn('Invalid or expired refresh token', { refreshToken });
+    return res.status(401).json({ error: 'Invalid or expired refresh token' });
+  }
+  const user = await getUserByEmail(stored.user.email);
+  if (!user) {
+    logger.warn('Refresh token user not found', { refreshToken });
+    return res.status(401).json({ error: 'User not found' });
+  }
+  logger.info('Refresh token used', { userId: user._id });
+  const token = signToken({ id: user._id, email: user.email, roles: user.roles });
+  res.json({ jwt: token });
+});
+
+/**
+ * @desc    Send password reset email
+ * @route   POST /auth/forgotPassword
+ * @access  Public
+ */
+export const forgotPassword = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email is required' });
+  const user = await getUserByEmail(email);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const resetToken = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '1h' });
+  const resetUrl = `${process.env.BASE_URL || 'http://localhost:4000'}/auth/reset-password?token=${resetToken}`;
+  await sendMail({
+    to: email,
+    subject: 'Reset your password',
+    text: `Reset your password: ${resetUrl}`,
+    html: `<p>Reset your password: <a href="${resetUrl}">${resetUrl}</a></p>`,
+  });
+  res.json({ message: 'Password reset email sent' });
+});
+
+/**
+ * @desc    Reset password using token from email
+ * @route   POST /auth/resetPassword
+ * @access  Public
+ */
+export const resetPassword = asyncHandler(async (req, res) => {
+  const { token, newPassword } = req.body;
+  if (!token || !newPassword) return res.status(400).json({ error: 'Token and new password are required' });
+  let payload;
+  try {
+    payload = jwt.verify(token, process.env.JWT_SECRET);
+  } catch {
+    return res.status(400).json({ error: 'Invalid or expired token' });
+  }
+  const user = await getUserByEmail(payload.email);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  // Patch user password in user service
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+  await fetch(`${process.env.USER_SERVICE_URL}/users/${user._id}/password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ oldPassword: null, newPassword: hashedPassword, isReset: true }),
+  });
+  res.json({ message: 'Password reset successful' });
+});
+
+/**
+ * @desc    Change password for authenticated user
+ * @route   POST /auth/changePassword
+ * @access  Private
+ * @role    User
+ */
+export const changePassword = asyncHandler(async (req, res) => {
+  const { oldPassword, newPassword } = req.body;
+
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+  const validation = authValidator.validatePasswordChange(oldPassword, newPassword);
+  if (!validation.valid) {
+    return res.status(400).json({ error: validation.error });
+  }
+
+  // Validate new password strength
+  const passwordValidation = authValidator.isValidPassword(newPassword);
+  if (!passwordValidation.valid) {
+    return res.status(400).json({ error: passwordValidation.error });
+  }
+
+  // Extract JWT from cookie or Authorization header
+  let jwtToken = null;
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+    jwtToken = req.headers.authorization.split(' ')[1];
+  } else if (req.cookies && req.cookies.jwt) {
+    jwtToken = req.cookies.jwt;
+  }
+  if (!jwtToken) return res.status(401).json({ error: 'JWT missing' });
+
+  // Send plain newPassword to user service (let user-service hash and validate)
+  const resp = await fetch(`${process.env.USER_SERVICE_URL}/users/${userId}/password/change`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${jwtToken}`,
+    },
+    body: JSON.stringify({ oldPassword, newPassword }),
+  });
+  if (!resp.ok) {
+    const err = await resp.json();
+    return res.status(resp.status).json(err);
+  }
+  res.json({ message: 'Password changed successfully' });
+});
+
+/**
+ * @desc    Verify email address using token
+ * @route   GET /auth/email/verify?token=...
+ * @access  Public
+ */
+export const verifyEmail = asyncHandler(async (req, res) => {
+  const { token } = req.query;
+  if (!token) return res.status(400).json({ error: 'Token is required' });
+  let payload;
+  try {
+    payload = jwt.verify(token, process.env.JWT_SECRET);
+  } catch {
+    return res.status(400).json({ error: 'Invalid or expired token' });
+  }
+  // Mark user as verified in user service
+  const user = await getUserByEmail(payload.email);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (user.isEmailVerified) return res.json({ message: 'Email already verified' });
+  // Issue a short-lived JWT for the user to authorize the PATCH
+  const userJwt = signToken({ id: user._id, email: user.email, roles: user.roles }, '15m');
+  const resp = await fetch(`${process.env.USER_SERVICE_URL}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${userJwt}`,
+    },
+    body: JSON.stringify({ isEmailVerified: true }),
+  });
+  if (!resp.ok) {
+    const contentType = resp.headers.get('content-type');
+    const text = await resp.text();
+    if (contentType && contentType.includes('application/json')) {
+      return res.status(resp.status).json(JSON.parse(text));
+    } else {
+      // Log the HTML/text error for debugging
+      console.error('User service error:', text);
+      return res.status(resp.status).send(text);
+    }
+  }
+  res.json({ message: 'Email verified successfully' });
+});
+
+/**
+ * @desc    Social login callback (if present)
+ * @route   GET /auth/social/callback
+ * @access  Public
+ */
+export const socialCallback = asyncHandler(async (req, res) => {
+  // req.user is set by passport strategy
+  const { provider, id, email, name } = req.user || {};
+  if (!req.user || !req.user._id) {
+    return res.status(500).json({ error: 'User not found or missing _id after social login' });
+  }
+  let user = await getUserBySocial(provider, id);
+  if (!user) {
+    user = await createUser({ email, name, social: { [provider]: { id } }, isEmailVerified: true });
+  }
+  if (!user || !user._id) {
+    return res.status(500).json({ error: 'User not found or missing _id after social login' });
+  }
+  const token = signToken({ id: user._id, email: user.email, roles: user.roles });
+
+  // Generate and store refresh token
+  const refreshToken = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+  await RefreshToken.create({
+    user: user._id,
+    token: refreshToken,
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+  });
+
+  // Set refresh token as HTTP-only, Secure cookie
+  res.cookie('refreshToken', refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  });
+
+  // Set JWT access token as HTTP-only cookie for web clients
+  res.cookie('jwt', token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 15 * 60 * 1000, // 15 min
+  });
+
+  // Issue CSRF token for web clients
+  issueCsrfToken(req, res, () => {});
+  // For mobile clients, also return JWT and CSRF token in response body
+  const csrfToken = req.csrfToken ? req.csrfToken() : res.locals.csrfToken || null;
+  res.json({ jwt: token, user, csrfToken });
+});
+
+/**
+ * @desc    Get current authenticated user info
+ * @route   GET /auth/me
+ * @access  Private
+ * @role    User
+ */
+export const me = asyncHandler((req, res) => {
+  // Return current user info
+  res.json({ user: req.user });
+});
+
+/**
+ * @desc    Register a new user
+ * @route   POST /auth/register
+ * @access  Public
+ */
+export const register = asyncHandler(async (req, res) => {
+  const { email, password, name } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
+  // Check if user already exists
+  const existing = await getUserByEmail(email);
+  if (existing) {
+    return res.status(409).json({ error: 'User already exists' });
+  }
+  // Do NOT hash password here; let user service handle hashing
+  const user = await createUser({ email, password, name, isEmailVerified: false });
+  if (!user) {
+    return res.status(500).json({ error: 'Failed to create user' });
+  }
+  // Generate email verification token
+  const verifyToken = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '1d' });
+  const verifyUrl = `${process.env.BASE_URL || 'http://localhost:4000'}/auth/email/verify?token=${verifyToken}`;
+  await sendMail({
+    to: email,
+    subject: 'Verify your email',
+    text: `Please verify your email: ${verifyUrl}`,
+    html: `<p>Please verify your email: <a href="${verifyUrl}">${verifyUrl}</a></p>`,
+  });
+  res.status(201).json({ message: 'Registration successful, please verify your email.' });
+});
+
+/**
+ * @desc    Request account reactivation (send email link)
+ * @route   POST /auth/account/reactivateRequest
+ * @access  Public
+ */
+export const requestAccountReactivation = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email is required' });
+  const user = await getUserByEmail(email);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (user.isActive) return res.status(400).json({ error: 'Account is already active.' });
+  // Generate a short-lived reactivation token
+  const reactivateToken = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '1h' });
+  const reactivateUrl = `${process.env.BASE_URL || 'http://localhost:4000'}/auth/reactivate?token=${reactivateToken}`;
+  await sendMail({
+    to: email,
+    subject: 'Reactivate your account',
+    text: `Reactivate your account: ${reactivateUrl}`,
+    html: `<p>Reactivate your account: <a href="${reactivateUrl}">${reactivateUrl}</a></p>`,
+  });
+  res.json({ message: 'Reactivation email sent.' });
+});
+
+/**
+ * @desc    Reactivate account via email link
+ * @route   GET /auth/account/reactivate
+ * @access  Public
+ */
+export const reactivateAccount = asyncHandler(async (req, res) => {
+  const { token } = req.query;
+  if (!token) return res.status(400).json({ error: 'Token is required' });
+  let payload;
+  try {
+    payload = jwt.verify(token, process.env.JWT_SECRET);
+  } catch {
+    return res.status(400).json({ error: 'Invalid or expired token' });
+  }
+  const user = await getUserByEmail(payload.email);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (user.isActive) return res.json({ message: 'Account is already active.' });
+  // Issue a short-lived JWT for the user to authorize the PATCH
+  const userJwt = signToken({ id: user._id, email: user.email, roles: user.roles }, '15m');
+  const resp = await fetch(`${process.env.USER_SERVICE_URL}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${userJwt}`,
+    },
+    body: JSON.stringify({ isActive: true }),
+  });
+  if (!resp.ok) {
+    const contentType = resp.headers.get('content-type');
+    const text = await resp.text();
+    if (contentType && contentType.includes('application/json')) {
+      return res.status(resp.status).json(JSON.parse(text));
+    } else {
+      console.error('User service error:', text);
+      return res.status(resp.status).send(text);
+    }
+  }
+  res.json({ message: 'Account reactivated successfully.' });
+});
+
+/**
+ * @desc    Delete own account (self-service)
+ * @route   DELETE /auth/account
+ * @access  Private
+ */
+export const deleteAccount = asyncHandler(async (req, res) => {
+  const token = req.headers.authorization?.split(' ')[1] || req.cookies.jwt;
+  const success = await import('../services/userServiceClient.js').then((m) => m.deleteUserSelf(token));
+  if (!success) return res.status(404).json({ error: 'User not found' });
+  res.status(204).send();
+});
+
+/**
+ * @desc    Admin: delete any user by ID
+ * @route   DELETE /auth/users/:id
+ * @access  Admin only
+ */
+export const adminDeleteUser = asyncHandler(async (req, res) => {
+  const token = req.headers.authorization?.split(' ')[1] || req.cookies.jwt;
+  const { id } = req.params;
+  const success = await import('../services/userServiceClient.js').then((m) => m.deleteUserById(id, token));
+  if (!success) return res.status(404).json({ error: 'User not found' });
+  res.status(204).send();
+});
