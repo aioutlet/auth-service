@@ -21,7 +21,7 @@ export const login = asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'Email and password are required' });
   }
   const user = await getUserByEmail(email);
-  console.log('Fetched user in login:', user);
+  logger.info('Fetched user in login', { user });
   if (!user) {
     logger.warn('Login failed: user not found', { email });
     return res.status(401).json({ error: 'Invalid credentials' });
@@ -264,8 +264,7 @@ export const verifyEmail = asyncHandler(async (req, res) => {
     if (contentType && contentType.includes('application/json')) {
       return res.status(resp.status).json(JSON.parse(text));
     } else {
-      // Log the HTML/text error for debugging
-      console.error('User service error:', text);
+      logger.error('User service error', { text });
       return res.status(resp.status).send(text);
     }
   }
@@ -423,7 +422,7 @@ export const reactivateAccount = asyncHandler(async (req, res) => {
     if (contentType && contentType.includes('application/json')) {
       return res.status(resp.status).json(JSON.parse(text));
     } else {
-      console.error('User service error:', text);
+      logger.error('User service error', { text });
       return res.status(resp.status).send(text);
     }
   }

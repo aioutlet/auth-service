@@ -1,5 +1,6 @@
 import fetch from 'node-fetch';
 import dotenv from 'dotenv';
+import logger from '../utils/logger.js';
 
 dotenv.config();
 
@@ -17,7 +18,7 @@ export async function getUserBySocial(provider, id) {
   const res = await fetch(url);
   if (!res.ok) {
     const text = await res.text();
-    console.error('getUserBySocial error:', res.status, text);
+    logger.error('getUserBySocial error', { status: res.status, text });
     return null;
   }
   return await res.json();
@@ -32,7 +33,7 @@ export async function createUser(userData) {
   });
   if (!res.ok) {
     const text = await res.text();
-    console.error('createUser error:', res.status, text);
+    logger.error('createUser error', { status: res.status, text });
     return null;
   }
   return await res.json();

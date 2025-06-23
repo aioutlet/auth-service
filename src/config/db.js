@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import 'colors'; // Import colors for colored console output
+import logger from '../utils/logger.js';
 
 const connectDB = async () => {
   try {
@@ -14,14 +15,15 @@ const connectDB = async () => {
     } = process.env;
 
     // Log environment variables for debugging
-    console.log('Environment variables:');
-    console.log(`MONGODB_CONNECTION_SCHEME: ${MONGODB_CONNECTION_SCHEME}`.yellow.bold);
-    console.log(`MONGODB_HOST: ${MONGODB_HOST}`.yellow.bold);
-    console.log(`MONGODB_PORT: ${MONGODB_PORT}`.yellow.bold);
-    console.log(`MONGODB_USERNAME: ${MONGODB_USERNAME}`.yellow.bold);
-    console.log(`MONGODB_PASSWORD: ${MONGODB_PASSWORD}`.yellow.bold);
-    console.log(`MONGODB_DB_NAME: ${MONGODB_DB_NAME}`.yellow.bold);
-    console.log(`MONGODB_DB_PARAMS: ${MONGODB_DB_PARAMS}`.yellow.bold);
+    logger.info('Environment variables:', {
+      MONGODB_CONNECTION_SCHEME,
+      MONGODB_HOST,
+      MONGODB_PORT,
+      MONGODB_USERNAME,
+      MONGODB_PASSWORD,
+      MONGODB_DB_NAME,
+      MONGODB_DB_PARAMS,
+    });
 
     if (!MONGODB_HOST || !MONGODB_DB_NAME) {
       throw new Error('MONGODB_HOST and MONGODB_DB_NAME must be defined');
@@ -39,12 +41,12 @@ const connectDB = async () => {
       mongodb_uri += `?${MONGODB_DB_PARAMS}`;
     }
 
-    console.log(`Connecting to MongoDB: ${mongodb_uri}`.yellow.bold);
+    logger.info(`Connecting to MongoDB: ${mongodb_uri}`);
     global.mongoUrl = mongodb_uri;
     await mongoose.connect(mongodb_uri);
-    console.log('Connected to MongoDB'.yellow.bold);
+    logger.info('Connected to MongoDB');
   } catch (error) {
-    console.error(`Error occurred while connecting to MongoDB: ${error.message}`);
+    logger.error(`Error occurred while connecting to MongoDB: ${error.message}`);
     process.exit(1);
   }
 };
