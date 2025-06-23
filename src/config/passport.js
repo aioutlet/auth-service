@@ -3,6 +3,7 @@ import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { Strategy as FacebookStrategy } from 'passport-facebook';
 import { Strategy as TwitterStrategy } from 'passport-twitter';
 import { getUserBySocial, createUser, getUserByEmail } from '../services/userServiceClient.js';
+import logger from '../utils/logger.js';
 
 export default function (passport) {
   // Local strategy
@@ -51,12 +52,12 @@ export default function (passport) {
                 if (updateRes.ok) {
                   user = await updateRes.json();
                   if (!user || !user._id) {
-                    console.error('PATCH /users/:id did not return user with _id:', user);
+                    logger.error('PATCH /users/:id did not return user with _id', { user });
                     return done(new Error('Failed to link Google ID: no user _id in response'));
                   }
                 } else {
                   const text = await updateRes.text();
-                  console.error('Failed to link Google ID to existing user:', updateRes.status, text);
+                  logger.error('Failed to link Google ID to existing user', { status: updateRes.status, text });
                   return done(new Error('Failed to link Google ID to existing user'));
                 }
               } else {
@@ -69,20 +70,20 @@ export default function (passport) {
             }
           }
           if (!user || !user._id) {
-            console.error('GoogleStrategy: User-service did not return a user with _id for Google login', user);
+            logger.error('GoogleStrategy: User-service did not return a user with _id for Google login', { user });
             return done(new Error('User-service did not return a user with _id for Google login'));
           }
           // Return user object with provider/id for downstream callback
           return done(null, { ...user, provider: 'google', id: profile.id });
         } catch (err) {
-          console.error('GoogleStrategy error:', err);
+          logger.error('GoogleStrategy error', { error: err });
           return done(err);
         }
       }
     )
   );
 
-  // Facebook OAuth
+  // Facebook OAuth (mirrors Google logic)
   passport.use(
     new FacebookStrategy(
       {
@@ -93,12 +94,48 @@ export default function (passport) {
       },
       async (accessToken, refreshToken, profile, done) => {
         try {
-          let user = await User.findOne({ 'social.facebook.id': profile.id });
+          let user = await getUserBySocial('facebook', profile.id);
           if (!user) {
-            user = await User.create({ email: profile.emails[0].value, social: { facebook: { id: profile.id } } });
+            // Try to find by email if not found by social ID
+            const email = profile.emails && profile.emails[0] && profile.emails[0].value;
+            if (email) {
+              let userByEmail = await getUserByEmail(email);
+              if (userByEmail) {
+                // Link the social ID to the existing user (admin endpoint)
+                const updateUrl = `${process.env.USER_SERVICE_URL}/${userByEmail._id}`;
+                const updateRes = await fetch(updateUrl, {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ social: { facebook: { id: profile.id } }, isEmailVerified: true }),
+                });
+                if (updateRes.ok) {
+                  user = await updateRes.json();
+                  if (!user || !user._id) {
+                    logger.error('PATCH /users/:id did not return user with _id', { user });
+                    return done(new Error('Failed to link Facebook ID: no user _id in response'));
+                  }
+                } else {
+                  const text = await updateRes.text();
+                  logger.error('Failed to link Facebook ID to existing user', { status: updateRes.status, text });
+                  return done(new Error('Failed to link Facebook ID to existing user'));
+                }
+              } else {
+                // No user by email, create new
+                user = await createUser({ email, social: { facebook: { id: profile.id } }, isEmailVerified: true });
+              }
+            } else {
+              // No email, cannot proceed
+              return done(new Error('No email found in Facebook profile'));
+            }
           }
-          return done(null, user);
+          if (!user || !user._id) {
+            logger.error('FacebookStrategy: User-service did not return a user with _id for Facebook login', { user });
+            return done(new Error('User-service did not return a user with _id for Facebook login'));
+          }
+          // Return user object with provider/id for downstream callback
+          return done(null, { ...user, provider: 'facebook', id: profile.id });
         } catch (err) {
+          logger.error('FacebookStrategy error', { error: err });
           return done(err);
         }
       }
