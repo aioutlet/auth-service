@@ -142,7 +142,7 @@ export default function (passport) {
     )
   );
 
-  // Twitter OAuth
+  // Twitter OAuth (mirrors Google logic)
   passport.use(
     new TwitterStrategy(
       {
@@ -153,17 +153,60 @@ export default function (passport) {
       },
       async (token, tokenSecret, profile, done) => {
         try {
-          let user = await User.findOne({ 'social.twitter.id': profile.id });
+          let user = await getUserBySocial('twitter', profile.id);
           if (!user) {
-            user = await User.create({ email: profile.emails[0].value, social: { twitter: { id: profile.id } } });
+            // Try to find by email if not found by social ID
+            const email = profile.emails && profile.emails[0] && profile.emails[0].value;
+            if (email) {
+              let userByEmail = await getUserByEmail(email);
+              if (userByEmail) {
+                // Link the social ID to the existing user (admin endpoint)
+                const updateUrl = `${process.env.USER_SERVICE_URL}/${userByEmail._id}`;
+                const updateRes = await fetch(updateUrl, {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ social: { twitter: { id: profile.id } }, isEmailVerified: true }),
+                });
+                if (updateRes.ok) {
+                  user = await updateRes.json();
+                  if (!user || !user._id) {
+                    logger.error('PATCH /users/:id did not return user with _id', { user });
+                    return done(new Error('Failed to link Twitter ID: no user _id in response'));
+                  }
+                } else {
+                  const text = await updateRes.text();
+                  logger.error('Failed to link Twitter ID to existing user', { status: updateRes.status, text });
+                  return done(new Error('Failed to link Twitter ID to existing user'));
+                }
+              } else {
+                // No user by email, create new
+                user = await createUser({ email, social: { twitter: { id: profile.id } }, isEmailVerified: true });
+              }
+            } else {
+              // No email, cannot proceed
+              return done(new Error('No email found in Twitter profile'));
+            }
           }
-          return done(null, user);
+          if (!user || !user._id) {
+            logger.error('TwitterStrategy: User-service did not return a user with _id for Twitter login', { user });
+            return done(new Error('User-service did not return a user with _id for Twitter login'));
+          }
+          // Return user object with provider/id for downstream callback
+          return done(null, { ...user, provider: 'twitter', id: profile.id });
         } catch (err) {
+          logger.error('TwitterStrategy error', { error: err });
           return done(err);
         }
       }
     )
   );
+
+  // Log Twitter env vars for debugging
+  logger.info('Twitter OAuth config', {
+    TWITTER_CONSUMER_KEY: process.env.TWITTER_CONSUMER_KEY,
+    TWITTER_CONSUMER_SECRET: process.env.TWITTER_CONSUMER_SECRET,
+    TWITTER_CALLBACK_URL: process.env.TWITTER_CALLBACK_URL,
+  });
 
   passport.serializeUser((user, done) => {
     done(null, user.id);
