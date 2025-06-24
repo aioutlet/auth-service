@@ -1,13 +1,17 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { signToken } from '../utils/jwt.js';
+import {
+  signToken,
+  verifyToken,
+  issueJwtToken,
+  issueRefreshToken,
+  issueCsrfToken as issueCsrfTokenConsistent,
+} from '../utils/tokenManager.js';
 import RefreshToken from '../models/refreshToken.model.js';
 import asyncHandler from '../middlewares/asyncHandler.js';
 import { getUserByEmail, createUser, getUserBySocial } from '../services/userServiceClient.js';
 import { sendMail } from '../utils/email.js';
 import logger from '../utils/logger.js';
-import { issueCsrfToken, requireCsrfToken } from '../middlewares/csrf.middleware.js';
-import authValidator from '../validators/auth.validator.js';
 
 /**
  * @desc    Log in a user with email and password
@@ -40,37 +44,12 @@ export const login = asyncHandler(async (req, res) => {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
   logger.info('User logged in', { userId: user._id, email });
-  const token = signToken({ id: user._id, email: user.email, roles: user.roles });
 
-  // Generate and store refresh token
-  const refreshToken = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-  // Store refreshToken in DB (optional, for blacklist/revoke)
-  await RefreshToken.create({
-    user: user._id,
-    token: refreshToken,
-    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-  });
+  // Issue tokens using consistent helpers
+  const token = issueJwtToken(req, res, user);
+  await issueRefreshToken(req, res, user);
+  await issueCsrfTokenConsistent(req, res, user);
 
-  // Set refresh token as HTTP-only, Secure cookie
-  res.cookie('refreshToken', refreshToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-  });
-
-  // Set JWT access token as HTTP-only cookie for web clients
-  // - For web: client should NOT send Authorization header, backend reads from cookie
-  // - For mobile: client should use token from response body
-  res.cookie('jwt', token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-    maxAge: 15 * 60 * 1000, // 15 min
-  });
-  // Issue CSRF token for web clients
-  issueCsrfToken(req, res, () => {});
-  // For mobile clients, also return JWT in response body
   res.json({ jwt: token, user });
 });
 
@@ -298,37 +277,13 @@ export const socialCallback = asyncHandler(async (req, res) => {
   if (!user || !user._id) {
     return res.status(500).json({ error: 'User not found or missing _id after social login' });
   }
-  const token = signToken({ id: user._id, email: user.email, roles: user.roles });
 
-  // Generate and store refresh token
-  const refreshToken = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-  await RefreshToken.create({
-    user: user._id,
-    token: refreshToken,
-    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-  });
+  // Issue tokens using consistent helpers
+  const token = issueJwtToken(req, res, user);
+  await issueRefreshToken(req, res, user);
+  await issueCsrfTokenConsistent(req, res, user);
 
-  // Set refresh token as HTTP-only, Secure cookie
-  res.cookie('refreshToken', refreshToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-  });
-
-  // Set JWT access token as HTTP-only cookie for web clients
-  res.cookie('jwt', token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-    maxAge: 15 * 60 * 1000, // 15 min
-  });
-
-  // Issue CSRF token for web clients
-  issueCsrfToken(req, res, () => {});
-  // For mobile clients, also return JWT and CSRF token in response body
-  const csrfToken = req.csrfToken ? req.csrfToken() : res.locals.csrfToken || null;
-  res.json({ jwt: token, user, csrfToken });
+  res.json({ jwt: token, user });
 });
 
 /**

@@ -1,7 +1,6 @@
 import express from 'express';
 import passport from 'passport';
 import * as authController from '../controllers/auth.controller.js';
-import refreshTokenMiddleware from '../middlewares/refreshToken.middleware.js';
 import authMiddleware, { authorizeRoles } from '../middlewares/auth.middleware.js';
 import { requireCsrfToken } from '../middlewares/csrf.middleware.js'; // add import
 
@@ -10,7 +9,7 @@ const router = express.Router();
 // Local login
 router.post('/login', authController.login);
 router.post('/logout', authMiddleware, requireCsrfToken, authController.logout);
-router.post('/token/refresh', refreshTokenMiddleware, authController.refreshToken);
+router.post('/token/refresh', authController.refreshToken);
 router.post('/password/forgot', authController.forgotPassword);
 router.post('/password/reset', authController.resetPassword);
 router.post('/password/change', authMiddleware, authController.changePassword);
