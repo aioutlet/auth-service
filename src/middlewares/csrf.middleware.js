@@ -1,3 +1,4 @@
+import ErrorResponse from '../utils/ErrorResponse.js';
 import CsrfToken from '../models/csrfToken.model.js';
 import mongoose from 'mongoose';
 
@@ -7,14 +8,14 @@ export async function requireCsrfToken(req, res, next) {
     const cookieToken = req.cookies['csrfToken'];
     const headerToken = req.get('X-CSRF-Token');
     if (!cookieToken || !headerToken || cookieToken !== headerToken) {
-      return res.status(403).json({ error: 'Invalid or missing CSRF token' });
+      return next(new ErrorResponse('Invalid or missing CSRF token', 403));
     }
     // Validate token in DB (optional, for advanced security)
     let userId = req.user?._id || req.user?.id;
     if (userId && mongoose.Types.ObjectId.isValid(userId)) {
       const csrfDoc = await CsrfToken.findOne({ token: cookieToken, user: userId });
       if (!csrfDoc || csrfDoc.expiresAt < new Date()) {
-        return res.status(403).json({ error: 'Expired or invalid CSRF token' });
+        return next(new ErrorResponse('Expired or invalid CSRF token', 403));
       }
     }
     next();
