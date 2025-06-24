@@ -1,18 +1,12 @@
 import jwt from 'jsonwebtoken';
 import asyncHandler from './asyncHandler.js';
+import ErrorResponse from '../utils/ErrorResponse.js';
 
 /**
  * Middleware for JWT authentication in the auth service.
  * Checks for a JWT in the Authorization header or cookies, verifies it, and attaches user info to req.user.
  * Responds with 401 Unauthorized if the token is missing or invalid.
  */
-class ErrorResponse extends Error {
-  constructor(message, statusCode) {
-    super(message);
-    this.statusCode = statusCode;
-  }
-}
-
 const authMiddleware = asyncHandler(async (req, res, next) => {
   let token;
 
