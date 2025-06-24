@@ -58,3 +58,12 @@ export async function deleteUserById(id, token) {
   });
   return res.status === 204;
 }
+
+export async function getUserById(id, token) {
+  // Use the admin route for internal/service-to-service lookups
+  const url = `${USER_SERVICE_URL.replace(/\/users$/, '')}/admin/users/${id}`;
+  const headers = token ? { Authorization: `Bearer ${token}` } : {};
+  const res = await fetch(url, { headers });
+  if (!res.ok) return null;
+  return await res.json();
+}

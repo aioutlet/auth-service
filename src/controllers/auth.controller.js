@@ -9,7 +9,7 @@ import {
 } from '../utils/tokenManager.js';
 import RefreshToken from '../models/refreshToken.model.js';
 import asyncHandler from '../middlewares/asyncHandler.js';
-import { getUserByEmail, createUser, getUserBySocial } from '../services/userServiceClient.js';
+import { getUserByEmail, getUserById, createUser, getUserBySocial } from '../services/userServiceClient.js';
 import { sendMail } from '../utils/email.js';
 import logger from '../utils/logger.js';
 
@@ -94,7 +94,8 @@ export const logout = asyncHandler(async (req, res) => {
  * @access  Public
  */
 export const refreshToken = asyncHandler(async (req, res) => {
-  const { refreshToken } = req.body;
+  // Read refresh token from HTTP-only cookie
+  const refreshToken = req.cookies?.refreshToken;
   if (!refreshToken) {
     logger.warn('Refresh token missing');
     return res.status(400).json({ error: 'Refresh token required' });
@@ -104,13 +105,17 @@ export const refreshToken = asyncHandler(async (req, res) => {
     logger.warn('Invalid or expired refresh token', { refreshToken });
     return res.status(401).json({ error: 'Invalid or expired refresh token' });
   }
-  const user = await getUserByEmail(stored.user.email);
+  const userId = stored.user;
+  const jwtToken = req.cookies?.jwt || null;
+  const user = await getUserById(userId, jwtToken);
   if (!user) {
     logger.warn('Refresh token user not found', { refreshToken });
     return res.status(401).json({ error: 'User not found' });
   }
   logger.info('Refresh token used', { userId: user._id });
   const token = signToken({ id: user._id, email: user.email, roles: user.roles });
+  // Rotate refresh token for extra security
+  await issueRefreshToken(req, res, user);
   res.json({ jwt: token });
 });
 
