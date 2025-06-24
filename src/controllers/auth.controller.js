@@ -121,7 +121,7 @@ export const refreshToken = asyncHandler(async (req, res) => {
 
 /**
  * @desc    Send password reset email
- * @route   POST /auth/forgotPassword
+ * @route   POST /auth/password/forgot
  * @access  Public
  */
 export const forgotPassword = asyncHandler(async (req, res) => {
@@ -130,7 +130,7 @@ export const forgotPassword = asyncHandler(async (req, res) => {
   const user = await getUserByEmail(email);
   if (!user) return res.status(404).json({ error: 'User not found' });
   const resetToken = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '1h' });
-  const resetUrl = `${process.env.BASE_URL || 'http://localhost:4000'}/auth/reset-password?token=${resetToken}`;
+  const resetUrl = `${process.env.BASE_URL || 'http://localhost:4000'}/auth/password/reset?token=${resetToken}`;
   await sendMail({
     to: email,
     subject: 'Reset your password',
@@ -142,7 +142,7 @@ export const forgotPassword = asyncHandler(async (req, res) => {
 
 /**
  * @desc    Reset password using token from email
- * @route   POST /auth/resetPassword
+ * @route   POST /auth/password/reset
  * @access  Public
  */
 export const resetPassword = asyncHandler(async (req, res) => {
@@ -156,13 +156,20 @@ export const resetPassword = asyncHandler(async (req, res) => {
   }
   const user = await getUserByEmail(payload.email);
   if (!user) return res.status(404).json({ error: 'User not found' });
-  // Patch user password in user service
-  const hashedPassword = await bcrypt.hash(newPassword, 10);
-  await fetch(`${process.env.USER_SERVICE_URL}/users/${user._id}/password`, {
-    method: 'POST',
+  // Call user-service PATCH /users/ to update password (self-service endpoint)
+  const resp = await fetch(`${process.env.USER_SERVICE_URL}/users/`, {
+    method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ oldPassword: null, newPassword: hashedPassword, isReset: true }),
+    body: JSON.stringify({ newPassword, isReset: true }),
   });
+  if (!resp.ok) {
+    const errorBody = await resp.json().catch(() => ({}));
+    return res.status(resp.status).json({
+      error: errorBody.error || 'Failed to reset password',
+      code: errorBody.code,
+      details: errorBody.details,
+    });
+  }
   res.json({ message: 'Password reset successful' });
 });
 
