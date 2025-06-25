@@ -58,7 +58,7 @@ export async function issueRefreshToken(req, res, user) {
  * Returns the token string.
  */
 export async function issueCsrfToken(req, res, user) {
-  if (!req.cookies['csrfToken']) {
+  // if (!req.cookies['csrfToken']) {
     const csrfToken = crypto.randomBytes(24).toString('hex');
     let userId = user?._id || user?.id;
     if (userId && mongoose.Types.ObjectId.isValid(userId)) {
@@ -77,6 +77,6 @@ export async function issueCsrfToken(req, res, user) {
     res.set('X-CSRF-Token', csrfToken);
     req.csrfToken = csrfToken;
     return csrfToken;
-  }
-  return req.cookies['csrfToken'];
+  // }
+  // return req.cookies['csrfToken'];
 }

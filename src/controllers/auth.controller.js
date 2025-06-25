@@ -2,7 +2,6 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import {
   signToken,
-  verifyToken,
   issueJwtToken,
   issueRefreshToken,
   issueCsrfToken as issueCsrfTokenConsistent,
