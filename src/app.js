@@ -49,10 +49,10 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 // Routes
-app.use('/', homeRoutes);
-app.use('/auth', authRoutes);
-app.use('/auth', mfaRoutes);
-app.use('/auth', accountLinkRoutes);
+app.use('/api/home', homeRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/auth', mfaRoutes);
+app.use('/api/auth', accountLinkRoutes);
 
 // Error handler
 app.use((err, req, res, next) => {

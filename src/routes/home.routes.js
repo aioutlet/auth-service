@@ -1,15 +1,11 @@
 import express from 'express';
+import { getVersion, health, getWelcomeMessage } from '../controllers/home.controller.js';
 
 const router = express.Router();
 
 // Home route
-router.get('/', (req, res) => {
-  res.json({ message: 'Welcome to the Auth Service API' });
-});
-
-// Health check route
-router.get('/health', (req, res) => {
-  res.json({ status: 'ok' });
-});
+router.get('/', getWelcomeMessage);
+router.get('/health', health);
+router.get('/version', getVersion);
 
 export default router;

@@ -4,14 +4,16 @@ import crypto from 'crypto';
 import CsrfToken from '../models/csrfToken.model.js';
 import mongoose from 'mongoose';
 
+const JWT_ALGORITHM = process.env.JWT_ALGORITHM || 'HS256';
+
 // --- Stateless JWT helpers ---
 export function signToken(payload, expiresIn = '15m') {
-  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn });
+  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn, algorithm: JWT_ALGORITHM });
 }
 
 export function verifyToken(token) {
   try {
-    return jwt.verify(token, process.env.JWT_SECRET);
+    return jwt.verify(token, process.env.JWT_SECRET, { algorithms: [JWT_ALGORITHM] });
   } catch (err) {
     return null;
   }
@@ -23,7 +25,16 @@ export function verifyToken(token) {
  * Returns the token string.
  */
 export function issueJwtToken(req, res, user) {
-  const token = signToken({ id: user._id, email: user.email, roles: user.roles }, '15m');
+  console.log('Issuing JWT for user:', user); // Debug log to inspect user object
+  const token = signToken(
+    {
+      id: user._id,
+      username: user.name,
+      email: user.email,
+      roles: user.roles,
+    },
+    '15m'
+  );
   res.cookie('jwt', token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
@@ -59,24 +70,24 @@ export async function issueRefreshToken(req, res, user) {
  */
 export async function issueCsrfToken(req, res, user) {
   // if (!req.cookies['csrfToken']) {
-    const csrfToken = crypto.randomBytes(24).toString('hex');
-    let userId = user?._id || user?.id;
-    if (userId && mongoose.Types.ObjectId.isValid(userId)) {
-      await CsrfToken.create({
-        token: csrfToken,
-        user: userId,
-        expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour
-      });
-    }
-    res.cookie('csrfToken', csrfToken, {
-      httpOnly: false, // Must be readable by JS to send in header
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 60 * 60 * 1000,
+  const csrfToken = crypto.randomBytes(24).toString('hex');
+  let userId = user?._id || user?.id;
+  if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+    await CsrfToken.create({
+      token: csrfToken,
+      user: userId,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour
     });
-    res.set('X-CSRF-Token', csrfToken);
-    req.csrfToken = csrfToken;
-    return csrfToken;
+  }
+  res.cookie('csrfToken', csrfToken, {
+    httpOnly: false, // Must be readable by JS to send in header
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 60 * 60 * 1000,
+  });
+  res.set('X-CSRF-Token', csrfToken);
+  req.csrfToken = csrfToken;
+  return csrfToken;
   // }
   // return req.cookies['csrfToken'];
 }

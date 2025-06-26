@@ -201,13 +201,6 @@ export default function (passport) {
     )
   );
 
-  // Log Twitter env vars for debugging
-  logger.info('Twitter OAuth config', {
-    TWITTER_CONSUMER_KEY: process.env.TWITTER_CONSUMER_KEY,
-    TWITTER_CONSUMER_SECRET: process.env.TWITTER_CONSUMER_SECRET,
-    TWITTER_CALLBACK_URL: process.env.TWITTER_CALLBACK_URL,
-  });
-
   passport.serializeUser((user, done) => {
     done(null, user.id);
   });
