@@ -10,10 +10,19 @@ const router = express.Router();
 router.post('/login', authController.login);
 router.post('/logout', authMiddleware, requireCsrfToken, authController.logout);
 router.post('/token/refresh', authController.refreshToken);
+
 router.post('/password/forgot', authController.forgotPassword);
 router.post('/password/reset', authController.resetPassword);
 router.post('/password/change', authMiddleware, authController.changePassword);
+
 router.get('/email/verify', authController.verifyEmail);
+router.post('/email/resend', authController.resendVerificationEmail);
+
+router.get('/me', authMiddleware, authorizeRoles('customer', 'admin'), authController.me);
+router.post('/register', authController.register);
+router.route('/reactivate').post(authController.requestAccountReactivation).get(authController.reactivateAccount);
+router.delete('/account', authMiddleware, authController.deleteAccount);
+router.delete('/users/:id', authMiddleware, authorizeRoles('admin'), authController.adminDeleteUser);
 
 // Social login
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
@@ -22,16 +31,5 @@ router.get('/facebook', passport.authenticate('facebook', { scope: ['email'] }))
 router.get('/facebook/callback', passport.authenticate('facebook', { session: false }), authController.socialCallback);
 router.get('/twitter', passport.authenticate('twitter'));
 router.get('/twitter/callback', passport.authenticate('twitter', { session: false }), authController.socialCallback);
-
-// Protect /auth/me for 'user' and 'admin' roles
-router.get('/me', authMiddleware, authorizeRoles('user', 'admin'), authController.me);
-// Registration endpoint
-router.post('/register', authController.register);
-// Account reactivation (POST to request, GET to activate)
-router.route('/reactivate').post(authController.requestAccountReactivation).get(authController.reactivateAccount);
-// Self-service account deletion
-router.delete('/account', authMiddleware, authController.deleteAccount);
-// Admin: delete any user by ID
-router.delete('/users/:id', authMiddleware, authorizeRoles('admin'), authController.adminDeleteUser);
 
 export default router;

@@ -10,6 +10,7 @@ import RefreshToken from '../models/refreshToken.model.js';
 import asyncHandler from '../middlewares/asyncHandler.js';
 import { getUserByEmail, getUserById, createUser, getUserBySocial } from '../services/userServiceClient.js';
 import { sendMail } from '../utils/email.js';
+import authValidator from '../validators/auth.validator.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -271,20 +272,86 @@ export const verifyEmail = asyncHandler(async (req, res) => {
 });
 
 /**
+ * @desc    Resend email verification
+ * @route   POST /auth/email/resend
+ * @access  Public
+ */
+export const resendVerificationEmail = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ error: 'Email is required' });
+  }
+
+  // Check if user exists
+  const user = await getUserByEmail(email);
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  // Check if already verified
+  if (user.isEmailVerified) {
+    return res.status(400).json({ error: 'Email is already verified' });
+  }
+
+  // Generate new verification token
+  const verifyToken = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '1d' });
+  const verifyUrl = `${process.env.BASE_URL || 'http://localhost:4000'}/api/auth/email/verify?token=${verifyToken}`;
+
+  // Send verification email
+  await sendMail({
+    to: email,
+    subject: 'Verify your email',
+    text: `Please verify your email: ${verifyUrl}`,
+    html: `<p>Please verify your email: <a href="${verifyUrl}">${verifyUrl}</a></p>`,
+  });
+
+  logger.info('Verification email resent', { email });
+  res.json({ message: 'Verification email sent successfully' });
+});
+
+/**
  * @desc    Social login callback (if present)
  * @route   GET /auth/social/callback
  * @access  Public
  */
 export const socialCallback = asyncHandler(async (req, res) => {
   // req.user is set by passport strategy
-  const { provider, id, email, name } = req.user || {};
+  const { provider, id, email, name, firstName, lastName, displayName } = req.user || {};
   if (!req.user || !req.user._id) {
     return res.status(500).json({ error: 'User not found or missing _id after social login' });
   }
+
   let user = await getUserBySocial(provider, id);
   if (!user) {
-    user = await createUser({ email, name, social: { [provider]: { id } }, isEmailVerified: true });
+    // Create new user with social login data
+    const userData = {
+      email,
+      social: { [provider]: { id } },
+      isEmailVerified: true,
+      roles: ['customer'],
+    };
+
+    // Handle name data from social provider
+    if (firstName) userData.firstName = firstName;
+    if (lastName) userData.lastName = lastName;
+    if (displayName) userData.displayName = displayName;
+
+    // Fallback: if we only have a single 'name' field, try to split it
+    if (name && !firstName && !lastName) {
+      const nameParts = name.split(' ');
+      if (nameParts.length >= 2) {
+        userData.firstName = nameParts[0];
+        userData.lastName = nameParts.slice(1).join(' ');
+      } else {
+        userData.firstName = name;
+      }
+      userData.displayName = name;
+    }
+
+    user = await createUser(userData);
   }
+
   if (!user || !user._id) {
     return res.status(500).json({ error: 'User not found or missing _id after social login' });
   }
@@ -314,31 +381,113 @@ export const me = asyncHandler((req, res) => {
  * @access  Public
  */
 export const register = asyncHandler(async (req, res) => {
-  const { email, password, name } = req.body;
+  const { email, password, firstName, lastName, displayName, addresses, paymentMethods, wishlist, preferences } =
+    req.body;
 
+  // Basic validation
   if (!email || !password) {
     return res.status(400).json({ error: 'Email and password are required' });
   }
+
+  // Validate password strength
+  const passwordValidation = authValidator.isValidPassword(password);
+  if (!passwordValidation.valid) {
+    return res.status(400).json({ error: passwordValidation.error });
+  }
+
   // Check if user already exists
   const existing = await getUserByEmail(email);
   if (existing) {
     return res.status(409).json({ error: 'User already exists' });
   }
-  // Do NOT hash password here; let user service handle hashing
-  const user = await createUser({ email, password, name, isEmailVerified: false });
-  if (!user) {
-    return res.status(500).json({ error: 'Failed to create user' });
+
+  // Prepare user data with new model structure
+  const userData = {
+    email,
+    password,
+    isEmailVerified: false,
+    roles: ['customer'], // Set default role for new users
+  };
+
+  // Add name fields if provided
+  if (firstName) userData.firstName = firstName;
+  if (lastName) userData.lastName = lastName;
+  if (displayName) userData.displayName = displayName;
+
+  // Add multi-step wizard data if provided
+  if (addresses && Array.isArray(addresses) && addresses.length > 0) {
+    userData.addresses = addresses;
   }
-  // Generate email verification token
-  const verifyToken = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '1d' });
-  const verifyUrl = `${process.env.BASE_URL || 'http://localhost:4000'}/auth/email/verify?token=${verifyToken}`;
-  await sendMail({
-    to: email,
-    subject: 'Verify your email',
-    text: `Please verify your email: ${verifyUrl}`,
-    html: `<p>Please verify your email: <a href="${verifyUrl}">${verifyUrl}</a></p>`,
-  });
-  res.status(201).json({ message: 'Registration successful, please verify your email.' });
+
+  if (paymentMethods && Array.isArray(paymentMethods) && paymentMethods.length > 0) {
+    userData.paymentMethods = paymentMethods;
+  }
+
+  if (wishlist && Array.isArray(wishlist) && wishlist.length > 0) {
+    userData.wishlist = wishlist;
+  }
+
+  if (preferences && typeof preferences === 'object') {
+    userData.preferences = preferences;
+  }
+
+  try {
+    // Create user through user service (validation will be handled by the user service)
+    const user = await createUser(userData);
+    if (!user) {
+      return res.status(500).json({ error: 'Failed to create user' });
+    }
+
+    // Generate email verification token
+    const verifyToken = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '1d' });
+    const verifyUrl = `${process.env.BASE_URL || 'http://localhost:4000'}/api/auth/email/verify?token=${verifyToken}`;
+
+    await sendMail({
+      to: email,
+      subject: 'Verify your email',
+      text: `Please verify your email: ${verifyUrl}`,
+      html: `<p>Please verify your email: <a href="${verifyUrl}">${verifyUrl}</a></p>`,
+    });
+
+    logger.info('User registered successfully', {
+      userId: user._id,
+      email,
+      hasAddresses: !!addresses?.length,
+      hasPaymentMethods: !!paymentMethods?.length,
+      hasWishlist: !!wishlist?.length,
+      hasPreferences: !!preferences,
+    });
+
+    res.status(201).json({
+      message: 'Registration successful, please verify your email.',
+      user: {
+        _id: user._id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        displayName: user.displayName,
+        isEmailVerified: user.isEmailVerified,
+        roles: user.roles,
+        // Include counts of additional data for confirmation
+        addressCount: user.addresses?.length || 0,
+        paymentMethodCount: user.paymentMethods?.length || 0,
+        wishlistCount: user.wishlist?.length || 0,
+        hasPreferences: !!user.preferences,
+      },
+    });
+  } catch (error) {
+    logger.error('Registration failed', { email, error: error.message });
+
+    // Check if it's a validation error from the user service
+    if (error.message && error.message.includes('validation')) {
+      return res.status(400).json({
+        error: 'Registration data validation failed. Please check your input data.',
+        details: error.message,
+      });
+    }
+
+    res.status(500).json({ error: 'Registration failed. Please try again.' });
+  }
 });
 
 /**

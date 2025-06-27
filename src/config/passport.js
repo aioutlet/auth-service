@@ -61,8 +61,22 @@ export default function (passport) {
                   return done(new Error('Failed to link Google ID to existing user'));
                 }
               } else {
-                // No user by email, create new
-                user = await createUser({ email, social: { google: { id: profile.id } }, isEmailVerified: true });
+                // No user by email, create new with updated user model structure
+                const userData = {
+                  email,
+                  social: { google: { id: profile.id } },
+                  isEmailVerified: true,
+                  roles: ['customer'],
+                };
+
+                // Extract name information from Google profile
+                if (profile.name) {
+                  if (profile.name.givenName) userData.firstName = profile.name.givenName;
+                  if (profile.name.familyName) userData.lastName = profile.name.familyName;
+                  if (profile.displayName) userData.displayName = profile.displayName;
+                }
+
+                user = await createUser(userData);
               }
             } else {
               // No email, cannot proceed
@@ -120,8 +134,22 @@ export default function (passport) {
                   return done(new Error('Failed to link Facebook ID to existing user'));
                 }
               } else {
-                // No user by email, create new
-                user = await createUser({ email, social: { facebook: { id: profile.id } }, isEmailVerified: true });
+                // No user by email, create new with updated user model structure
+                const userData = {
+                  email,
+                  social: { facebook: { id: profile.id } },
+                  isEmailVerified: true,
+                  roles: ['customer'],
+                };
+
+                // Extract name information from Facebook profile
+                if (profile.name) {
+                  if (profile.name.givenName) userData.firstName = profile.name.givenName;
+                  if (profile.name.familyName) userData.lastName = profile.name.familyName;
+                }
+                if (profile.displayName) userData.displayName = profile.displayName;
+
+                user = await createUser(userData);
               }
             } else {
               // No email, cannot proceed
@@ -179,8 +207,28 @@ export default function (passport) {
                   return done(new Error('Failed to link Twitter ID to existing user'));
                 }
               } else {
-                // No user by email, create new
-                user = await createUser({ email, social: { twitter: { id: profile.id } }, isEmailVerified: true });
+                // No user by email, create new with updated user model structure
+                const userData = {
+                  email,
+                  social: { twitter: { id: profile.id } },
+                  isEmailVerified: true,
+                  roles: ['customer'],
+                };
+
+                // Extract name information from Twitter profile
+                if (profile.displayName) {
+                  userData.displayName = profile.displayName;
+                  // Try to split display name into first/last name
+                  const nameParts = profile.displayName.split(' ');
+                  if (nameParts.length >= 2) {
+                    userData.firstName = nameParts[0];
+                    userData.lastName = nameParts.slice(1).join(' ');
+                  } else {
+                    userData.firstName = profile.displayName;
+                  }
+                }
+
+                user = await createUser(userData);
               }
             } else {
               // No email, cannot proceed
