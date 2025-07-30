@@ -12,36 +12,37 @@ import { getUserByEmail, getUserById, createUser, getUserBySocial } from '../ser
 import { sendMail } from '../utils/email.js';
 import authValidator from '../validators/auth.validator.js';
 import logger from '../utils/logger.js';
+import ErrorResponse from '../utils/ErrorResponse.js';
 
 /**
  * @desc    Log in a user with email and password
  * @route   POST /auth/login
  * @access  Public
  */
-export const login = asyncHandler(async (req, res) => {
+export const login = asyncHandler(async (req, res, next) => {
   const { email, password } = req.body;
   if (!email || !password) {
     logger.warn('Login attempt missing credentials', { email });
-    return res.status(400).json({ error: 'Email and password are required' });
+    return next(new ErrorResponse('Email and password are required', 400));
   }
   const user = await getUserByEmail(email);
   logger.info('Fetched user in login', { user });
   if (!user) {
     logger.warn('Login failed: user not found', { email });
-    return res.status(401).json({ error: 'Invalid credentials' });
+    return next(new ErrorResponse('Invalid credentials', 401));
   }
   if (user.isActive === false) {
     logger.warn('Login failed: account deactivated', { email });
-    return res.status(403).json({ error: 'Account is deactivated.' });
+    return next(new ErrorResponse('Account is deactivated', 403));
   }
   if (!user.isEmailVerified) {
     logger.warn('Login failed: email not verified', { email });
-    return res.status(403).json({ error: 'Please verify your email before logging in.' });
+    return next(new ErrorResponse('Please verify your email before logging in', 403));
   }
   const isMatch = await bcrypt.compare(password, user.password);
   if (!isMatch) {
     logger.warn('Login failed: invalid password', { email });
-    return res.status(401).json({ error: 'Invalid credentials' });
+    return next(new ErrorResponse('Invalid credentials', 401));
   }
   logger.info('User logged in', { userId: user._id, email });
 
@@ -59,13 +60,13 @@ export const login = asyncHandler(async (req, res) => {
  * @access  Private
  * @role    User
  */
-export const logout = asyncHandler(async (req, res) => {
+export const logout = asyncHandler(async (req, res, next) => {
   // Read refresh token from cookie
   const refreshToken = req.cookies?.refreshToken;
   // CSRF protection is now enforced at the route level, not here
   if (!refreshToken) {
     logger.warn('Logout attempt missing refresh token');
-    return res.status(400).json({ error: 'Refresh token required' });
+    return next(new ErrorResponse('Refresh token required', 400));
   }
   await RefreshToken.deleteOne({ token: refreshToken });
   // Clear the cookies
@@ -93,24 +94,24 @@ export const logout = asyncHandler(async (req, res) => {
  * @route   POST /auth/refreshToken
  * @access  Public
  */
-export const refreshToken = asyncHandler(async (req, res) => {
+export const refreshToken = asyncHandler(async (req, res, next) => {
   // Read refresh token from HTTP-only cookie
   const refreshToken = req.cookies?.refreshToken;
   if (!refreshToken) {
     logger.warn('Refresh token missing');
-    return res.status(400).json({ error: 'Refresh token required' });
+    return next(new ErrorResponse('Refresh token required', 400));
   }
   const stored = await RefreshToken.findOne({ token: refreshToken });
   if (!stored || stored.expiresAt < new Date()) {
     logger.warn('Invalid or expired refresh token', { refreshToken });
-    return res.status(401).json({ error: 'Invalid or expired refresh token' });
+    return next(new ErrorResponse('Invalid or expired refresh token', 401));
   }
   const userId = stored.user;
   const jwtToken = req.cookies?.jwt || null;
   const user = await getUserById(userId, jwtToken);
   if (!user) {
     logger.warn('Refresh token user not found', { refreshToken });
-    return res.status(401).json({ error: 'User not found' });
+    return next(new ErrorResponse('User not found', 401));
   }
   logger.info('Refresh token used', { userId: user._id });
   const token = signToken({ id: user._id, email: user.email, roles: user.roles });
@@ -124,11 +125,11 @@ export const refreshToken = asyncHandler(async (req, res) => {
  * @route   POST /auth/password/forgot
  * @access  Public
  */
-export const forgotPassword = asyncHandler(async (req, res) => {
+export const forgotPassword = asyncHandler(async (req, res, next) => {
   const { email } = req.body;
-  if (!email) return res.status(400).json({ error: 'Email is required' });
+  if (!email) return next(new ErrorResponse('Email is required', 400));
   const user = await getUserByEmail(email);
-  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (!user) return next(new ErrorResponse('User not found', 404));
   const resetToken = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '1h' });
   const resetUrl = `${process.env.BASE_URL || 'http://localhost:4000'}/auth/password/reset?token=${resetToken}`;
   await sendMail({
@@ -145,17 +146,17 @@ export const forgotPassword = asyncHandler(async (req, res) => {
  * @route   POST /auth/password/reset
  * @access  Public
  */
-export const resetPassword = asyncHandler(async (req, res) => {
+export const resetPassword = asyncHandler(async (req, res, next) => {
   const { token, newPassword } = req.body;
-  if (!token || !newPassword) return res.status(400).json({ error: 'Token and new password are required' });
+  if (!token || !newPassword) return next(new ErrorResponse('Token and new password are required', 400));
   let payload;
   try {
     payload = jwt.verify(token, process.env.JWT_SECRET);
   } catch {
-    return res.status(400).json({ error: 'Invalid or expired token' });
+    return next(new ErrorResponse('Invalid or expired token', 400));
   }
   const user = await getUserByEmail(payload.email);
-  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (!user) return next(new ErrorResponse('User not found', 404));
   // Call user-service PATCH /users/ to update password (self-service endpoint)
   const resp = await fetch(`${process.env.USER_SERVICE_URL}/users/`, {
     method: 'PATCH',
@@ -164,11 +165,7 @@ export const resetPassword = asyncHandler(async (req, res) => {
   });
   if (!resp.ok) {
     const errorBody = await resp.json().catch(() => ({}));
-    return res.status(resp.status).json({
-      error: errorBody.error || 'Failed to reset password',
-      code: errorBody.code,
-      details: errorBody.details,
-    });
+    return next(new ErrorResponse(errorBody.error || 'Failed to reset password', resp.status));
   }
   res.json({ message: 'Password reset successful' });
 });
@@ -179,22 +176,22 @@ export const resetPassword = asyncHandler(async (req, res) => {
  * @access  Private
  * @role    User
  */
-export const changePassword = asyncHandler(async (req, res) => {
+export const changePassword = asyncHandler(async (req, res, next) => {
   const { oldPassword, newPassword } = req.body;
   logger.info(`old password: ${oldPassword}, new password: ${newPassword}`);
 
   const userId = req.user?.id;
-  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+  if (!userId) return next(new ErrorResponse('Unauthorized', 401));
 
   const validation = authValidator.validatePasswordChange(oldPassword, newPassword);
   if (!validation.valid) {
-    return res.status(400).json({ error: validation.error });
+    return next(new ErrorResponse(validation.error, 400));
   }
 
   // Validate new password strength
   const passwordValidation = authValidator.isValidPassword(newPassword);
   if (!passwordValidation.valid) {
-    return res.status(400).json({ error: passwordValidation.error });
+    return next(new ErrorResponse(passwordValidation.error, 400));
   }
 
   // Extract JWT from cookie or Authorization header
@@ -204,7 +201,7 @@ export const changePassword = asyncHandler(async (req, res) => {
   } else if (req.cookies && req.cookies.jwt) {
     jwtToken = req.cookies.jwt;
   }
-  if (!jwtToken) return res.status(401).json({ error: 'JWT missing' });
+  if (!jwtToken) return next(new ErrorResponse('JWT missing', 401));
 
   // Forward password change to user service PATCH /users with { password }
   const resp = await fetch(`${process.env.USER_SERVICE_URL}`, {
@@ -225,7 +222,7 @@ export const changePassword = asyncHandler(async (req, res) => {
     } catch {
       err = { error: 'Unknown error from user service' };
     }
-    return res.status(resp.status).json(err);
+    return next(new ErrorResponse(err.error || 'Password change failed', resp.status));
   }
   res.json({ message: 'Password changed successfully' });
 });
@@ -235,18 +232,18 @@ export const changePassword = asyncHandler(async (req, res) => {
  * @route   GET /auth/email/verify?token=...
  * @access  Public
  */
-export const verifyEmail = asyncHandler(async (req, res) => {
+export const verifyEmail = asyncHandler(async (req, res, next) => {
   const { token } = req.query;
-  if (!token) return res.status(400).json({ error: 'Token is required' });
+  if (!token) return next(new ErrorResponse('Token is required', 400));
   let payload;
   try {
     payload = jwt.verify(token, process.env.JWT_SECRET);
   } catch {
-    return res.status(400).json({ error: 'Invalid or expired token' });
+    return next(new ErrorResponse('Invalid or expired token', 400));
   }
   // Mark user as verified in user service
   const user = await getUserByEmail(payload.email);
-  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (!user) return next(new ErrorResponse('User not found', 404));
   if (user.isEmailVerified) return res.json({ message: 'Email already verified' });
   // Issue a short-lived JWT for the user to authorize the PATCH
   const userJwt = signToken({ id: user._id, email: user.email, roles: user.roles }, '15m');
@@ -262,10 +259,11 @@ export const verifyEmail = asyncHandler(async (req, res) => {
     const contentType = resp.headers.get('content-type');
     const text = await resp.text();
     if (contentType && contentType.includes('application/json')) {
-      return res.status(resp.status).json(JSON.parse(text));
+      const errorData = JSON.parse(text);
+      return next(new ErrorResponse(errorData.error || 'Email verification failed', resp.status));
     } else {
       logger.error('User service error', { text });
-      return res.status(resp.status).send(text);
+      return next(new ErrorResponse('Email verification failed', resp.status));
     }
   }
   res.json({ message: 'Email verified successfully' });
@@ -276,22 +274,22 @@ export const verifyEmail = asyncHandler(async (req, res) => {
  * @route   POST /auth/email/resend
  * @access  Public
  */
-export const resendVerificationEmail = asyncHandler(async (req, res) => {
+export const resendVerificationEmail = asyncHandler(async (req, res, next) => {
   const { email } = req.body;
 
   if (!email) {
-    return res.status(400).json({ error: 'Email is required' });
+    return next(new ErrorResponse('Email is required', 400));
   }
 
   // Check if user exists
   const user = await getUserByEmail(email);
   if (!user) {
-    return res.status(404).json({ error: 'User not found' });
+    return next(new ErrorResponse('User not found', 404));
   }
 
   // Check if already verified
   if (user.isEmailVerified) {
-    return res.status(400).json({ error: 'Email is already verified' });
+    return next(new ErrorResponse('Email is already verified', 400));
   }
 
   // Generate new verification token
@@ -315,11 +313,11 @@ export const resendVerificationEmail = asyncHandler(async (req, res) => {
  * @route   GET /auth/social/callback
  * @access  Public
  */
-export const socialCallback = asyncHandler(async (req, res) => {
+export const socialCallback = asyncHandler(async (req, res, next) => {
   // req.user is set by passport strategy
   const { provider, id, email, name, firstName, lastName, displayName } = req.user || {};
   if (!req.user || !req.user._id) {
-    return res.status(500).json({ error: 'User not found or missing _id after social login' });
+    return next(new ErrorResponse('User not found or missing _id after social login', 500));
   }
 
   let user = await getUserBySocial(provider, id);
@@ -353,7 +351,7 @@ export const socialCallback = asyncHandler(async (req, res) => {
   }
 
   if (!user || !user._id) {
-    return res.status(500).json({ error: 'User not found or missing _id after social login' });
+    return next(new ErrorResponse('User not found or missing _id after social login', 500));
   }
 
   // Issue tokens using consistent helpers
@@ -380,25 +378,25 @@ export const me = asyncHandler((req, res) => {
  * @route   POST /auth/register
  * @access  Public
  */
-export const register = asyncHandler(async (req, res) => {
+export const register = asyncHandler(async (req, res, next) => {
   const { email, password, firstName, lastName, displayName, addresses, paymentMethods, wishlist, preferences } =
     req.body;
 
   // Basic validation
   if (!email || !password) {
-    return res.status(400).json({ error: 'Email and password are required' });
+    return next(new ErrorResponse('Email and password are required', 400));
   }
 
   // Validate password strength
   const passwordValidation = authValidator.isValidPassword(password);
   if (!passwordValidation.valid) {
-    return res.status(400).json({ error: passwordValidation.error });
+    return next(new ErrorResponse(passwordValidation.error, 400));
   }
 
   // Check if user already exists
   const existing = await getUserByEmail(email);
   if (existing) {
-    return res.status(409).json({ error: 'User already exists' });
+    return next(new ErrorResponse('User already exists', 409));
   }
 
   // Prepare user data with new model structure
@@ -435,7 +433,7 @@ export const register = asyncHandler(async (req, res) => {
     // Create user through user service (validation will be handled by the user service)
     const user = await createUser(userData);
     if (!user) {
-      return res.status(500).json({ error: 'Failed to create user' });
+      return next(new ErrorResponse('Failed to create user', 500));
     }
 
     // Generate email verification token
@@ -480,13 +478,10 @@ export const register = asyncHandler(async (req, res) => {
 
     // Check if it's a validation error from the user service
     if (error.message && error.message.includes('validation')) {
-      return res.status(400).json({
-        error: 'Registration data validation failed. Please check your input data.',
-        details: error.message,
-      });
+      return next(new ErrorResponse('Registration data validation failed. Please check your input data.', 400));
     }
 
-    res.status(500).json({ error: 'Registration failed. Please try again.' });
+    return next(new ErrorResponse('Registration failed. Please try again.', 500));
   }
 });
 
@@ -495,12 +490,12 @@ export const register = asyncHandler(async (req, res) => {
  * @route   POST /auth/account/reactivateRequest
  * @access  Public
  */
-export const requestAccountReactivation = asyncHandler(async (req, res) => {
+export const requestAccountReactivation = asyncHandler(async (req, res, next) => {
   const { email } = req.body;
-  if (!email) return res.status(400).json({ error: 'Email is required' });
+  if (!email) return next(new ErrorResponse('Email is required', 400));
   const user = await getUserByEmail(email);
-  if (!user) return res.status(404).json({ error: 'User not found' });
-  if (user.isActive) return res.status(400).json({ error: 'Account is already active.' });
+  if (!user) return next(new ErrorResponse('User not found', 404));
+  if (user.isActive) return next(new ErrorResponse('Account is already active.', 400));
   // Generate a short-lived reactivation token
   const reactivateToken = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '1h' });
   const reactivateUrl = `${process.env.BASE_URL || 'http://localhost:4000'}/auth/reactivate?token=${reactivateToken}`;
@@ -518,17 +513,17 @@ export const requestAccountReactivation = asyncHandler(async (req, res) => {
  * @route   GET /auth/account/reactivate
  * @access  Public
  */
-export const reactivateAccount = asyncHandler(async (req, res) => {
+export const reactivateAccount = asyncHandler(async (req, res, next) => {
   const { token } = req.query;
-  if (!token) return res.status(400).json({ error: 'Token is required' });
+  if (!token) return next(new ErrorResponse('Token is required', 400));
   let payload;
   try {
     payload = jwt.verify(token, process.env.JWT_SECRET);
   } catch {
-    return res.status(400).json({ error: 'Invalid or expired token' });
+    return next(new ErrorResponse('Invalid or expired token', 400));
   }
   const user = await getUserByEmail(payload.email);
-  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (!user) return next(new ErrorResponse('User not found', 404));
   if (user.isActive) return res.json({ message: 'Account is already active.' });
   // Issue a short-lived JWT for the user to authorize the PATCH
   const userJwt = signToken({ id: user._id, email: user.email, roles: user.roles }, '15m');
@@ -544,10 +539,11 @@ export const reactivateAccount = asyncHandler(async (req, res) => {
     const contentType = resp.headers.get('content-type');
     const text = await resp.text();
     if (contentType && contentType.includes('application/json')) {
-      return res.status(resp.status).json(JSON.parse(text));
+      const errorData = JSON.parse(text);
+      return next(new ErrorResponse(errorData.error || 'Account reactivation failed', resp.status));
     } else {
       logger.error('User service error', { text });
-      return res.status(resp.status).send(text);
+      return next(new ErrorResponse('Account reactivation failed', resp.status));
     }
   }
   res.json({ message: 'Account reactivated successfully.' });
@@ -558,10 +554,10 @@ export const reactivateAccount = asyncHandler(async (req, res) => {
  * @route   DELETE /auth/account
  * @access  Private
  */
-export const deleteAccount = asyncHandler(async (req, res) => {
+export const deleteAccount = asyncHandler(async (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1] || req.cookies.jwt;
   const success = await import('../services/userServiceClient.js').then((m) => m.deleteUserSelf(token));
-  if (!success) return res.status(404).json({ error: 'User not found' });
+  if (!success) return next(new ErrorResponse('User not found', 404));
   res.status(204).send();
 });
 
@@ -570,10 +566,10 @@ export const deleteAccount = asyncHandler(async (req, res) => {
  * @route   DELETE /auth/users/:id
  * @access  Admin only
  */
-export const adminDeleteUser = asyncHandler(async (req, res) => {
+export const adminDeleteUser = asyncHandler(async (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1] || req.cookies.jwt;
   const { id } = req.params;
   const success = await import('../services/userServiceClient.js').then((m) => m.deleteUserById(id, token));
-  if (!success) return res.status(404).json({ error: 'User not found' });
+  if (!success) return next(new ErrorResponse('User not found', 404));
   res.status(204).send();
 });

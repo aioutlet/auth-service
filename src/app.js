@@ -12,6 +12,7 @@ import accountLinkRoutes from './routes/accountLink.routes.js';
 import homeRoutes from './routes/home.routes.js';
 import cookieParser from 'cookie-parser';
 import logger from './utils/logger.js';
+import errorHandler from './middlewares/errorHandler.js';
 
 const app = express();
 
@@ -55,10 +56,7 @@ app.use('/api/auth', mfaRoutes);
 app.use('/api/auth', accountLinkRoutes);
 
 // Error handler
-app.use((err, req, res, next) => {
-  logger.error('Unhandled error', { error: err });
-  res.status(500).json({ error: 'Internal Server Error' });
-});
+app.use(errorHandler);
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => logger.info(`Auth service running on port ${PORT}`));

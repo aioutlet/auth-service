@@ -28,8 +28,10 @@ const authMiddleware = asyncHandler(async (req, res, next) => {
       roles: decoded.roles,
     };
     next();
-  } catch {
-    return next(new ErrorResponse('Not authorized to access this route', 401));
+  } catch (error) {
+    // Pass the original JWT error to centralized error handler
+    // The errorHandler middleware will handle TokenExpiredError, JsonWebTokenError, etc.
+    return next(error);
   }
 });
 
@@ -41,7 +43,7 @@ export const authorizeRoles =
   (...roles) =>
   (req, res, next) => {
     if (!req.user || !roles.some((role) => req.user.roles?.includes(role))) {
-      return res.status(403).json({ error: 'Forbidden: insufficient role' });
+      return next(new ErrorResponse('Forbidden: insufficient role', 403));
     }
     next();
   };
