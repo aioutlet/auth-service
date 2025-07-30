@@ -1,12 +1,14 @@
 import * as authController from '../src/controllers/auth.controller.js';
-import { getUserByEmail, createUser, getUserBySocial } from '../src/services/userServiceClient.js';
+import { getUserByEmail, getUserById, createUser, getUserBySocial } from '../src/services/userServiceClient.js';
 import RefreshToken from '../src/models/refreshToken.model.js';
+import CsrfToken from '../src/models/csrfToken.model.js';
 import { sendMail } from '../src/utils/email.js';
 import httpMocks from 'node-mocks-http';
 import bcrypt from 'bcrypt';
 
 jest.mock('../src/services/userServiceClient.js');
 jest.mock('../src/models/refreshToken.model.js');
+jest.mock('../src/models/csrfToken.model.js');
 jest.mock('../src/utils/email.js');
 jest.mock('../src/middlewares/csrf.middleware.js', () => ({
   issueCsrfToken: jest.fn((req, res, next) => (typeof next === 'function' ? next() : undefined)),
@@ -25,8 +27,31 @@ function mockReqRes(body = {}, opts = {}) {
     user: opts.user || undefined,
   });
   const res = httpMocks.createResponse();
-  res.cookie = jest.fn(); // Mock cookie to no-op
-  const next = jest.fn();
+  res.cookie = jest.fn((name, value, options) => {
+    // Store cookies in the response for testing
+    if (!res.cookies) res.cookies = {};
+    res.cookies[name] = { value, options };
+  });
+  res.clearCookie = jest.fn();
+
+  // Mock next function to simulate error handler middleware
+  const next = jest.fn((error) => {
+    if (error) {
+      // Simulate what errorHandler middleware would do
+      const statusCode = error.statusCode || 500;
+      const message = error.message || 'Internal Server Error';
+
+      res.status(statusCode);
+      res.json({
+        success: false,
+        error: message,
+        ...(process.env.NODE_ENV === 'development' && { stack: error.stack }),
+      });
+    }
+    // Return a resolved promise to make this properly awaitable
+    return Promise.resolve();
+  });
+
   return { req, res, next };
 }
 
@@ -37,6 +62,7 @@ describe('auth.controller', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     RefreshToken.create = jest.fn().mockResolvedValue({});
+    CsrfToken.create = jest.fn().mockResolvedValue({});
   });
   describe('login', () => {
     it('should login user with valid credentials', async () => {
@@ -51,11 +77,6 @@ describe('auth.controller', () => {
       });
       const { req, res, next } = mockReqRes({ email: 'test@example.com', password: 'password123' });
       await authController.login(req, res, next);
-      // Debug: log raw response
-      // eslint-disable-next-line no-console
-      console.log('RAW DATA:', res._getData());
-      // eslint-disable-next-line no-console
-      console.log('IS END CALLED:', res._isEndCalled());
       expect(res.statusCode).toBe(200);
       expect(() => res._getJSONData()).not.toThrow();
       expect(res._getJSONData()).toHaveProperty('jwt');
@@ -172,10 +193,10 @@ describe('auth.controller', () => {
       RefreshToken.findOne.mockResolvedValue({
         token: 'validtoken',
         expiresAt: new Date(Date.now() + 10000),
-        user: { email: 'test@example.com', _id: 'user1', roles: ['user'] },
+        user: 'user1', // This should be the user ID
       });
-      getUserByEmail.mockResolvedValue({ _id: 'user1', email: 'test@example.com', roles: ['user'] });
-      const { req, res, next } = mockReqRes({ refreshToken: 'validtoken' });
+      getUserById.mockResolvedValue({ _id: 'user1', email: 'test@example.com', roles: ['user'] });
+      const { req, res, next } = mockReqRes({}, { cookies: { refreshToken: 'validtoken' } });
       await authController.refreshToken(req, res, next);
       expect(res.statusCode).toBe(200);
       expect(res._getJSONData()).toHaveProperty('jwt');
@@ -188,7 +209,7 @@ describe('auth.controller', () => {
     });
     it('should fail if refresh token is invalid or expired', async () => {
       RefreshToken.findOne.mockResolvedValue(null);
-      const { req, res, next } = mockReqRes({ refreshToken: 'badtoken' });
+      const { req, res, next } = mockReqRes({}, { cookies: { refreshToken: 'badtoken' } });
       await authController.refreshToken(req, res, next);
       expect(res.statusCode).toBe(401);
       expect(res._getJSONData().error).toMatch(/Invalid/);
