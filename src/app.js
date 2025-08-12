@@ -13,10 +13,12 @@ import homeRoutes from './routes/home.routes.js';
 import cookieParser from 'cookie-parser';
 import logger from './utils/logger.js';
 import errorHandler from './middlewares/errorHandler.js';
+import correlationIdMiddleware from './middlewares/correlationId.middleware.js';
 
 const app = express();
 
 // Middleware
+app.use(correlationIdMiddleware); // Add correlation ID middleware first
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cors());
