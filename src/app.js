@@ -14,6 +14,7 @@ import cookieParser from 'cookie-parser';
 import logger from './utils/logger.js';
 import errorHandler from './middlewares/errorHandler.js';
 import correlationIdMiddleware from './middlewares/correlationId.middleware.js';
+import { health, readiness, liveness, metrics } from './controllers/operational.controller.js';
 
 const app = express();
 
@@ -56,6 +57,12 @@ app.use('/api/home', homeRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/auth', mfaRoutes);
 app.use('/api/auth', accountLinkRoutes);
+
+// Operational endpoints (for monitoring, load balancers, K8s probes)
+app.get('/health', health); // Main health check
+app.get('/health/ready', readiness); // Readiness probe
+app.get('/health/live', liveness); // Liveness probe
+app.get('/metrics', metrics); // Basic metrics
 
 // Error handler
 app.use(errorHandler);
