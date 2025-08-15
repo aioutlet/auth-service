@@ -28,6 +28,7 @@
     "test": "jest"
   },
   "dependencies": {
+    "amqplib": "^0.10.8",
     "bcrypt": "^5.1.0",
     "colors": "^1.4.0",
     "connect-mongo": "^5.0.0",
