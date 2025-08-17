@@ -40,7 +40,7 @@
     "jsonwebtoken": "^9.0.0",
     "mongoose": "^8.17.1",
     "morgan": "^1.10.1",
-    "nodemailer": "^6.9.0",
+    "nodemailer": "^7.0.5",
     "passport": "^0.7.0",
     "passport-facebook": "^3.0.0",
     "passport-google-oauth20": "^2.0.0",
