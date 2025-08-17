@@ -52,7 +52,7 @@
     "winston": "^3.17.0"
   },
   "devDependencies": {
-    "@babel/preset-env": "^7.27.2",
+    "@babel/preset-env": "^7.28.3",
     "babel-jest": "^30.0.2",
     "jest": "^30.0.0",
     "node-mocks-http": "^1.17.2",
