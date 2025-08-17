@@ -14,12 +14,14 @@ import cookieParser from 'cookie-parser';
 import logger from './utils/logger.js';
 import errorHandler from './middlewares/errorHandler.js';
 import correlationIdMiddleware from './middlewares/correlationId.middleware.js';
+import { generalRateLimit } from './middlewares/rateLimit.middleware.js';
 import { health, readiness, liveness, metrics } from './controllers/operational.controller.js';
 
 const app = express();
 
 // Middleware
 app.use(correlationIdMiddleware); // Add correlation ID middleware first
+app.use(generalRateLimit); // Apply general rate limiting to all endpoints
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cors());

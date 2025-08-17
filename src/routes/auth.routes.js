@@ -3,24 +3,37 @@ import passport from 'passport';
 import * as authController from '../controllers/auth.controller.js';
 import authMiddleware, { authorizeRoles } from '../middlewares/auth.middleware.js';
 import { requireCsrfToken } from '../middlewares/csrf.middleware.js'; // add import
+import {
+  authRateLimit,
+  passwordRateLimit,
+  registrationRateLimit,
+  emailActionsRateLimit,
+  tokenRefreshRateLimit,
+  authSlowDown,
+} from '../middlewares/rateLimit.middleware.js';
 
 const router = express.Router();
 
-// Local login
-router.post('/login', authController.login);
+// Local login - Apply strict rate limiting with progressive delay
+router.post('/login', authSlowDown, authRateLimit, authController.login);
 router.post('/logout', authMiddleware, requireCsrfToken, authController.logout);
-router.post('/token/refresh', authController.refreshToken);
+router.post('/token/refresh', tokenRefreshRateLimit, authController.refreshToken);
 
-router.post('/password/forgot', authController.forgotPassword);
-router.post('/password/reset', authController.resetPassword);
-router.post('/password/change', authMiddleware, authController.changePassword);
+// Password operations - Apply strict rate limiting
+router.post('/password/forgot', passwordRateLimit, authController.forgotPassword);
+router.post('/password/reset', passwordRateLimit, authController.resetPassword);
+router.post('/password/change', passwordRateLimit, authMiddleware, authController.changePassword);
 
-router.get('/email/verify', authController.verifyEmail);
-router.post('/email/resend', authController.resendVerificationEmail);
+// Email operations - Apply moderate rate limiting
+router.get('/email/verify', emailActionsRateLimit, authController.verifyEmail);
+router.post('/email/resend', emailActionsRateLimit, authController.resendVerificationEmail);
 
 router.get('/me', authMiddleware, authorizeRoles('customer', 'admin'), authController.me);
-router.post('/register', authController.register);
-router.route('/reactivate').post(authController.requestAccountReactivation).get(authController.reactivateAccount);
+router.post('/register', registrationRateLimit, authController.register);
+router
+  .route('/reactivate')
+  .post(emailActionsRateLimit, authController.requestAccountReactivation)
+  .get(emailActionsRateLimit, authController.reactivateAccount);
 router.delete('/account', authMiddleware, authController.deleteAccount);
 router.delete('/users/:id', authMiddleware, authorizeRoles('admin'), authController.adminDeleteUser);
 
