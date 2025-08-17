@@ -1,12 +1,128 @@
-# To get started with Dependabot version updates, you'll need to specify which
-# package ecosystems to update and where the package manifests are located.
-# Please see the documentation for more information:
+# Dependabot configuration for auth-service
+# This configuration will automatically check for dependency updates
+# and create pull requests when new versions are available.
+#
+# For more information, see:
 # https://docs.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
-# https://containers.dev/guide/dependabot
 
 version: 2
 updates:
- - package-ecosystem: "devcontainers"
-   directory: "/"
-   schedule:
-     interval: weekly
+  # Enable version updates for npm dependencies
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '09:00'
+      timezone: 'Etc/UTC'
+    open-pull-requests-limit: 10
+    assignees:
+      - 'auth-service-team'
+    commit-message:
+      prefix: 'deps'
+      prefix-development: 'deps-dev'
+      include: 'scope'
+    labels:
+      - 'dependencies'
+    # Group related updates together to reduce PR noise
+    groups:
+      # Group Express and related middleware
+      express-ecosystem:
+        patterns:
+          - 'express'
+          - 'express-session'
+          - 'cors'
+          - 'cookie-parser'
+          - 'morgan'
+        update-types:
+          - 'minor'
+          - 'patch'
+      # Group Passport.js authentication packages
+      passport-ecosystem:
+        patterns:
+          - 'passport'
+          - 'passport-*'
+        update-types:
+          - 'minor'
+          - 'patch'
+      # Group MongoDB-related updates
+      mongodb-ecosystem:
+        patterns:
+          - 'mongoose'
+          - 'connect-mongo'
+        update-types:
+          - 'minor'
+          - 'patch'
+      # Group testing-related updates
+      testing-ecosystem:
+        patterns:
+          - 'jest'
+          - 'babel-jest'
+          - '@babel/preset-env'
+          - 'supertest'
+          - 'node-mocks-http'
+        update-types:
+          - 'minor'
+          - 'patch'
+      # Group security and authentication utilities
+      auth-utilities:
+        patterns:
+          - 'bcrypt'
+          - 'jsonwebtoken'
+          - 'speakeasy'
+        update-types:
+          - 'minor'
+          - 'patch'
+      # Group messaging and communication
+      messaging:
+        patterns:
+          - 'amqplib'
+          - 'nodemailer'
+        update-types:
+          - 'minor'
+          - 'patch'
+
+  # Enable version updates for Docker
+  - package-ecosystem: 'docker'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '09:00'
+      timezone: 'Etc/UTC'
+    open-pull-requests-limit: 5
+    assignees:
+      - 'auth-service-team'
+    commit-message:
+      prefix: 'docker'
+      include: 'scope'
+    labels:
+      - 'docker'
+      - 'infrastructure'
+
+  # Enable version updates for GitHub Actions (if any workflows are added later)
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'monthly'
+      day: 'monday'
+      time: '09:00'
+      timezone: 'Etc/UTC'
+    open-pull-requests-limit: 5
+    assignees:
+      - 'auth-service-team'
+    commit-message:
+      prefix: 'ci'
+      include: 'scope'
+    labels:
+      - 'github-actions'
+
+  # Keep existing devcontainers configuration
+  - package-ecosystem: 'devcontainers'
+    directory: '/'
+    schedule:
+      interval: weekly
+    assignees:
+      - 'auth-service-team'
+    labels:
+      - 'devcontainer'
