@@ -1,0 +1,24 @@
+[
+  {
+    "id": "770e8400-e29b-41d4-a716-446655440001",
+    "user_id": "550e8400-e29b-41d4-a716-446655440001",
+    "provider_id": "660e8400-e29b-41d4-a716-446655440001",
+    "provider_user_id": "google123456789",
+    "access_token": "ya29.a0AfH6SMC...",
+    "refresh_token": "1//04...",
+    "expires_at": "2024-01-01T11:00:00Z",
+    "created_at": "2024-01-01T10:00:00Z",
+    "updated_at": "2024-01-01T10:00:00Z"
+  },
+  {
+    "id": "770e8400-e29b-41d4-a716-446655440002",
+    "user_id": "550e8400-e29b-41d4-a716-446655440007",
+    "provider_id": "660e8400-e29b-41d4-a716-446655440002",
+    "provider_user_id": "facebook987654321",
+    "access_token": "EAAC...",
+    "refresh_token": null,
+    "expires_at": "2024-01-04T15:00:00Z",
+    "created_at": "2024-01-04T13:00:00Z",
+    "updated_at": "2024-01-04T13:00:00Z"
+  }
+]
