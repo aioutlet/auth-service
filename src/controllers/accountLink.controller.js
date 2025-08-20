@@ -1,4 +1,3 @@
-import fetch from 'node-fetch';
 import asyncHandler from '../middlewares/asyncHandler.js';
 import { getUserByEmail, getUserBySocial } from '../services/userServiceClient.js';
 

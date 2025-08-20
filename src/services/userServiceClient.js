@@ -1,4 +1,3 @@
-import fetch from 'node-fetch';
 import dotenv from 'dotenv';
 import logger from '../utils/logger.js';
 

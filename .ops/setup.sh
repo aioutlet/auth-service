@@ -8,27 +8,17 @@ set -e
 SERVICE_NAME="auth-service"
 SERVICE_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# Default environment
-ENV_NAME="development"
-
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
-        -e|--env)
-            ENV_NAME="$2"
-            shift 2
-            ;;
         -h|--help)
             echo "Usage: $0 [options]"
             echo "Options:"
-            echo "  -e, --env ENV_NAME    Environment name (default: development)"
-            echo "                        Looks for .env.ENV_NAME file"
             echo "  -h, --help           Show this help message"
             echo ""
-            echo "Examples:"
-            echo "  $0                   # Uses .env (development)"
-            echo "  $0 -e production     # Uses .env.production"
-            echo "  $0 -e staging        # Uses .env.staging"
+            echo "This script sets up the auth service for development."
+            echo "Uses .env file for configuration."
+            echo "Database and dependencies are managed via Docker Compose."
             exit 0
             ;;
         *)
@@ -39,7 +29,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-echo "🚀 Setting up $SERVICE_NAME for $ENV_NAME environment..."
+echo "🚀 Setting up $SERVICE_NAME for development..."
 
 # Color codes for output
 RED='\033[0;31m'
@@ -84,20 +74,14 @@ detect_os() {
 
 # Function to load environment variables from .env file
 load_env_file() {
-    local env_file=""
+    local env_file="$SERVICE_PATH/.env"
     
-    if [ "$ENV_NAME" = "development" ]; then
-        env_file="$SERVICE_PATH/.env.development"
-    else
-        env_file="$SERVICE_PATH/.env.$ENV_NAME"
-    fi
-    
-    log_info "Loading environment variables from $(basename $env_file)..."
+    log_info "Loading environment variables from .env..."
     
     if [ ! -f "$env_file" ]; then
         log_error "Environment file not found: $env_file"
-        log_info "Available environment files:"
-        ls -la "$SERVICE_PATH"/.env* 2>/dev/null || log_info "No .env files found"
+        log_info "Please copy .env.example to .env and configure it:"
+        log_info "cp .env.example .env"
         exit 1
     fi
     
@@ -117,10 +101,10 @@ load_env_file() {
     
     set +a  # stop automatically exporting
     
-    log_success "Environment variables loaded from $(basename $env_file)"
+    log_success "Environment variables loaded from .env"
     
-    # Validate required variables
-    local required_vars=("DB_NAME" "DB_USER" "DB_PASSWORD" "PORT" "NODE_ENV")
+    # Validate required variables for MongoDB-based auth service
+    local required_vars=("MONGODB_DB_NAME" "MONGODB_USERNAME" "MONGODB_PASSWORD" "PORT" "NODE_ENV")
     local missing_vars=()
     
     for var in "${required_vars[@]}"; do
@@ -137,8 +121,8 @@ load_env_file() {
     
     log_info "Environment: $NODE_ENV"
     log_info "Port: $PORT"
-    log_info "Database: $DB_NAME"
-    log_info "Database User: $DB_USER"
+    log_info "MongoDB Database: $MONGODB_DB_NAME"
+    log_info "MongoDB User: $MONGODB_USERNAME"
 }
 
 # Check for Node.js
@@ -167,17 +151,26 @@ check_nodejs() {
     fi
 }
 
-# Check for PostgreSQL
-check_postgresql() {
-    log_info "Checking PostgreSQL installation..."
+# Check for MongoDB (via Docker)
+check_mongodb() {
+    log_info "Checking MongoDB/Docker setup..."
     
-    if command_exists psql; then
-        POSTGRES_VERSION=$(psql --version | awk '{print $3}' | sed 's/,.*//g')
-        log_success "PostgreSQL $POSTGRES_VERSION is installed"
+    if command_exists docker; then
+        log_success "Docker is available for MongoDB container"
     else
-        log_error "MongoDB connection available via Docker container"
+        log_error "Docker is required for MongoDB container"
+        log_info "Please install Docker Desktop or Docker Engine"
         exit 1
     fi
+    
+    # Check if Docker service is running
+    if ! docker info >/dev/null 2>&1; then
+        log_error "Docker service is not running"
+        log_info "Please start Docker Desktop or Docker service"
+        exit 1
+    fi
+    
+    log_success "MongoDB will be available via Docker container"
 }
 
 # Install Node.js dependencies
@@ -197,16 +190,13 @@ install_dependencies() {
 
 # Setup database
 setup_database() {
-    log_info "Setting up database: $DB_NAME"
+    log_info "Setting up MongoDB via Docker Compose"
     
-    # Check if database exists and create if not
-    if ! psql -h ${DB_HOST:-localhost} -U postgres -lqt | cut -d \| -f 1 | grep -qw "$DB_NAME"; then
-        log_info "Creating database: $DB_NAME"
-        createdb -h ${DB_HOST:-localhost} -U postgres "$DB_NAME"
-        log_success "Database created successfully"
-    else
-        log_info "Database $DB_NAME already exists"
-    fi
+    # MongoDB setup is handled by docker-compose.yml
+    # The container will initialize the database automatically
+    log_info "MongoDB Database: $MONGODB_DB_NAME"
+    log_info "MongoDB will be available on port: ${MONGODB_PORT:-27018}"
+    log_success "MongoDB configuration verified"
     
     # Create user if not exists
     psql -h ${DB_HOST:-localhost} -U postgres -d postgres -c "
@@ -269,22 +259,16 @@ validate_setup() {
 
 # Create environment file if it doesn't exist
 create_env_template() {
-    local env_file=""
-    
-    if [ "$ENV_NAME" = "development" ]; then
-        env_file="$SERVICE_PATH/.env"
-    else
-        env_file="$SERVICE_PATH/.env.$ENV_NAME"
-    fi
+    local env_file="$SERVICE_PATH/.env"
     
     if [ ! -f "$env_file" ]; then
-        log_info "Creating environment template: $(basename $env_file)"
+        log_info "Creating environment template: .env"
         
         cat > "$env_file" << EOF
-# Auth Service Environment Configuration - $ENV_NAME
+# Auth Service Environment Configuration - Development
 
 # Server Configuration
-NODE_ENV=$ENV_NAME
+NODE_ENV=development
 PORT=3001
 HOST=localhost
 
@@ -299,7 +283,7 @@ DB_POOL_MIN=2
 DB_POOL_MAX=10
 
 # JWT Configuration
-JWT_SECRET=your-super-secret-jwt-key-for-auth-service-$ENV_NAME
+JWT_SECRET=your-super-secret-jwt-key-for-auth-service-development
 JWT_EXPIRES_IN=24h
 JWT_REFRESH_EXPIRES_IN=7d
 JWT_ALGORITHM=HS256
@@ -329,7 +313,7 @@ RATE_LIMIT_MAX_REQUESTS=100
 LOGIN_RATE_LIMIT_MAX_REQUESTS=5
 
 # Session Configuration
-SESSION_SECRET=your-session-secret-for-auth-service-$ENV_NAME
+SESSION_SECRET=your-session-secret-for-auth-service-development
 SESSION_TIMEOUT=3600000
 SESSION_STORE=redis
 
@@ -412,7 +396,7 @@ main() {
     
     OS=$(detect_os)
     log_info "Detected OS: $OS"
-    log_info "Target Environment: $ENV_NAME"
+    log_info "Target Environment: development"
     
     # Create environment file if it doesn't exist
     create_env_template
@@ -422,7 +406,7 @@ main() {
     
     # Check prerequisites
     check_nodejs
-    check_postgresql
+    check_mongodb
     
     # Install dependencies
     install_dependencies
