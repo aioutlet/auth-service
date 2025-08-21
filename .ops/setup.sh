@@ -423,6 +423,27 @@ main() {
         log_success "✅ Auth Service setup completed successfully!"
         echo "=========================================="
         echo ""
+        
+        # Start services with Docker Compose
+        log_info "🐳 Starting services with Docker Compose..."
+        if docker-compose up -d; then
+            log_success "Services started successfully"
+            echo ""
+            log_info "⏳ Waiting for services to be ready..."
+            sleep 15
+            
+            # Check service health
+            if docker-compose ps | grep -q "Up.*healthy"; then
+                log_success "Services are healthy and ready"
+            else
+                log_warning "Services may still be starting up"
+            fi
+        else
+            log_error "Failed to start services with Docker Compose"
+            return 1
+        fi
+        echo ""
+        
         echo "🔐 Setup Summary:"
         echo "  • Environment: $NODE_ENV"
         echo "  • Port: $PORT"
@@ -437,17 +458,10 @@ main() {
         echo "  • Password Security & History"
         echo "  • Rate Limiting & Account Lockout"
         echo ""
-        echo "📚 Database Commands:"
-        echo "   • npm run db:setup              # Complete database setup"
-        echo "   • npm run db:seed               # Load sample data into database"  
-        echo "   • npm run db:clear              # Clear database data"
-        echo ""
-        echo "🚀 Next Steps:"
-        echo "  1. Review and update .env file (especially JWT secrets)"
-        echo "  2. Configure OAuth providers if needed"
-        echo "  3. Start the service: npm run dev"
-        echo "  4. Run tests: npm test"
-        echo "  5. Check health: curl http://localhost:$PORT/health"
+        echo "� Service is now running:"
+        echo "  • View status: docker-compose ps"
+        echo "  • View logs: docker-compose logs -f"
+        echo "  • Stop services: bash .ops/teardown.sh"
         echo ""
     else
         log_error "Setup validation failed"
