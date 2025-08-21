@@ -30,7 +30,7 @@ services:
       start_period: 30s
 
   mongo:
-    image: mongo:5.0
+    image: mongo:latest
     container_name: auth-mongo-docker
     restart: unless-stopped
     ports:
