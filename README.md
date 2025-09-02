@@ -1,4 +1,4 @@
-# Auth Service
+# Auth Service !!!!
 
 `auth service` is a microservice responsible for handling user authentication and authorization for the AIOutlet platform. It supports both traditional username/password login and social login via OAuth2 providers such as Google, Facebook, and Twitter. Upon successful authentication, it issues JWT tokens that can be used to access other microservices within the platform.
 
