@@ -8,12 +8,12 @@ const JWT_ALGORITHM = process.env.JWT_ALGORITHM || 'HS256';
 
 // --- Stateless JWT helpers ---
 export function signToken(payload, expiresIn = '15m') {
-  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn, algorithm: JWT_ALGORITHM });
+  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn });
 }
 
 export function verifyToken(token) {
   try {
-    return jwt.verify(token, process.env.JWT_SECRET, { algorithms: [JWT_ALGORITHM] });
+    return jwt.verify(token, process.env.JWT_SECRET);
   } catch (err) {
     return null;
   }
