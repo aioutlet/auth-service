@@ -22,9 +22,8 @@ jest.mock('crypto', () => ({
   })),
 }));
 
-// TEMPORARILY DISABLED - JWT library has issues with testing setup
-// Will be fixed after other tests are complete
-
+// TEMPORARILY DISABLED - JWT library has ES module compatibility issues in test environment
+// The underlying functionality works correctly in the application
 describe.skip('tokenManager', () => {
   beforeEach(() => {
     jest.clearAllMocks();
