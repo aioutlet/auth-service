@@ -59,6 +59,11 @@ const errorHandler = (err, req, res, next) => {
     error: error.message || 'Internal Server Error',
   };
 
+  // Add validation errors if present
+  if (error.validationErrors) {
+    response.validationErrors = error.validationErrors;
+  }
+
   // Add development-only details
   if (isDev) {
     response.stack = error.stack;
@@ -67,9 +72,18 @@ const errorHandler = (err, req, res, next) => {
       statusCode: error.statusCode,
       ...(err.code && { code: err.code }),
     };
+    // In development, log to console for immediate visibility
+    console.error('\n🚨 API Error:', {
+      message: error.message,
+      statusCode: error.statusCode,
+      validationErrors: error.validationErrors,
+      path: req.originalUrl,
+      method: req.method,
+    });
   }
 
   res.status(error.statusCode || 500).json(response);
 };
 
-export default errorHandler;
+// Export all functions
+export { errorHandler };

@@ -123,7 +123,7 @@ describe.skip('RefreshToken Model (mongoose mock issue)', () => {
       const result = await mockRefreshTokenMethods.deleteMany({ expiresAt: { $lt: now } });
 
       expect(mockRefreshTokenMethods.deleteMany).toHaveBeenCalledWith({ 
-        expiresAt: { $lt: now } 
+        expiresAt: { $lt: now }, 
       });
       expect(result).toEqual({ deletedCount: 5 });
     });

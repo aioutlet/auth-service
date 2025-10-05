@@ -1,15 +1,11 @@
 import winston from 'winston';
 import { colorizeLevel } from './colorize.js';
+import { isDevelopment, isProduction, isTest } from './environment.js';
 
 /**
  * Standardized logger configuration for Node.js services
  * Supports both development and production environments with correlation ID integration
  */
-
-// Environment-based configuration
-const isDevelopment = process.env.NODE_ENV === 'development';
-const isProduction = process.env.NODE_ENV === 'production';
-const isTest = process.env.NODE_ENV === 'test';
 
 const serviceName = process.env.SERVICE_NAME || 'auth-service';
 const logLevel = process.env.LOG_LEVEL || (isDevelopment ? 'debug' : 'info');
@@ -27,9 +23,9 @@ const consoleFormat = winston.format.combine(
 
     // Build metadata string
     const metaFields = [];
-    if (userId) metaFields.push(`userId=${userId}`);
-    if (operation) metaFields.push(`operation=${operation}`);
-    if (duration) metaFields.push(`duration=${duration}ms`);
+    if (userId) {metaFields.push(`userId=${userId}`);}
+    if (operation) {metaFields.push(`operation=${operation}`);}
+    if (duration) {metaFields.push(`duration=${duration}ms`);}
 
     // Add remaining metadata
     Object.keys(meta).forEach((key) => {
@@ -42,7 +38,7 @@ const consoleFormat = winston.format.combine(
     const logMessage = `[${ts}] [${level.toUpperCase()}] ${serviceName} ${corrId}: ${message}${metaStr}`;
 
     return isDevelopment ? colorizeLevel(level, logMessage) : logMessage;
-  })
+  }),
 );
 
 // JSON format for production
@@ -58,7 +54,7 @@ const jsonFormat = winston.format.combine(
       message: info.message,
       ...info,
     });
-  })
+  }),
 );
 
 // Create transports based on configuration
@@ -69,7 +65,7 @@ if (logToConsole && !isTest) {
     new winston.transports.Console({
       format: logFormat === 'json' ? jsonFormat : consoleFormat,
       level: logLevel,
-    })
+    }),
   );
 }
 
@@ -79,7 +75,7 @@ if (logToFile) {
       filename: logFilePath,
       format: jsonFormat,
       level: logLevel,
-    })
+    }),
   );
 }
 

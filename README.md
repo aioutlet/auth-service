@@ -15,14 +15,13 @@
 - JWT validation middleware for protecting API routes
 - Support for account linking (link social accounts to existing user profiles)
 - Refresh token mechanism for improved security and session management
-- Multi-factor authentication (MFA) support for enhanced account security
 - Integration hooks for API Gateway to manage authentication and routing
 
 ---
 
 ## Architecture
 
-This service is built with Node.js and Express, using Passport.js for authentication strategies and Mongoose for MongoDB object modeling.
+This service is built with Node.js and Express, using JWT for authentication and Mongoose for MongoDB object modeling.
 
 The microservice is designed to be deployed independently and can run locally, via Docker, or in Kubernetes (AKS).
 
@@ -105,28 +104,21 @@ auth-service/
 ├── src/
 │   ├── app.js
 │   ├── config/
-│   │   ├── passport.js            # Passport strategies & OAuth config
-│   │   ├── mfa.config.js          # MFA settings & config
 │   │   └── apiGateway.config.js   # API Gateway integration config
 │   ├── controllers/
 │   │   ├── auth.controller.js     # Auth route handlers (login, logout, etc.)
-│   │   ├── mfa.controller.js      # MFA endpoints (verify code, enable/disable)
 │   │   └── accountLink.controller.js  # Social/local account linking handlers
 │   ├── middlewares/
 │   │   ├── auth.middleware.js     # JWT validation middleware
-│   │   ├── refreshToken.middleware.js # Refresh token validation
-│   │   └── mfa.middleware.js      # MFA verification middleware
+│   │   └── refreshToken.middleware.js # Refresh token validation
 │   ├── models/
-│   │   ├── user.model.js          # User schema with social accounts, MFA fields
-│   │   ├── refreshToken.model.js # Refresh tokens schema/storage
-│   │   └── mfa.model.js           # (Optional) MFA device/session model
+│   │   ├── user.model.js          # User schema with social accounts
+│   │   └── refreshToken.model.js # Refresh tokens schema/storage
 │   ├── routes/
 │   │   ├── auth.routes.js         # Auth routes (login, logout, forgot/reset password)
-│   │   ├── mfa.routes.js          # Routes for MFA enable/verify/reset
 │   │   └── accountLink.routes.js  # Routes for linking/unlinking accounts
 │   ├── services/
 │   │   ├── auth.service.js        # Auth business logic (login, register, social login)
-│   │   ├── mfa.service.js         # MFA business logic (generate/validate codes)
 │   │   └── accountLink.service.js # Account linking logic
 │   ├── utils/
 │   │   ├── jwt.js                 # JWT sign/verify helpers
@@ -135,11 +127,9 @@ auth-service/
 │   │   └── logger.js              # Centralized logging utility
 │   └── validators/
 │       ├── auth.validator.js     # Input validation for auth endpoints
-│       ├── mfa.validator.js      # Validation for MFA related input
 │       └── accountLink.validator.js # Validation for account linking input
 ├── tests/
 │   ├── auth.test.js              # Unit and integration tests for auth
-│   ├── mfa.test.js               # Tests for MFA flows
 │   └── accountLink.test.js       # Tests for account linking
 ├── .env.example                  # Sample environment variables file
 ├── Dockerfile                   # Dockerfile to containerize the service

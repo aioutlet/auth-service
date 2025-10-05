@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import asyncHandler from './asyncHandler.js';
+import { asyncHandler } from './asyncHandler.js';
 import ErrorResponse from '../utils/ErrorResponse.js';
 
 /**
@@ -39,7 +39,7 @@ const authMiddleware = asyncHandler(async (req, res, next) => {
  * Middleware to require one or more user roles (e.g., 'admin', 'user').
  * Responds with 403 Forbidden if the user does not have any of the required roles.
  */
-export const authorizeRoles =
+const authorizeRoles =
   (...roles) =>
   (req, res, next) => {
     if (!req.user || !roles.some((role) => req.user.roles?.includes(role))) {
@@ -48,4 +48,5 @@ export const authorizeRoles =
     next();
   };
 
-export default authMiddleware;
+// Export all functions
+export { authMiddleware, authorizeRoles };

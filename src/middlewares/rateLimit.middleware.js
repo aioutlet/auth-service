@@ -1,10 +1,22 @@
 import rateLimit from 'express-rate-limit';
 import slowDown from 'express-slow-down';
 import logger from '../observability/index.js';
+import { getCurrentEnvironment, isProduction, isDevelopment } from '../utils/environment.js';
 
-// Simple environment checks
-const isProduction = () => process.env.NODE_ENV === 'production';
-const isDevelopment = () => process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'local';
+/**
+ * Simple tracing helpers (no-op if tracing not available)
+ */
+const withSpan = async (name, attributes, fn) => {
+  try {
+    return await fn();
+  } catch (error) {
+    throw error;
+  }
+};
+
+const addSpanAttributes = (attributes) => {
+  // No-op for now, can be implemented with OpenTelemetry
+};
 
 /**
  * Rate limiting configuration for different environments
@@ -159,7 +171,7 @@ function createRateLimitHandler(operation) {
  * @param {Object} customConfig - Custom configuration overrides
  * @returns {Function} - Express rate limiting middleware
  */
-export function createRateLimiter(customConfig = {}) {
+function createRateLimiter(customConfig = {}) {
   const environment = getCurrentEnvironment();
   const config = {
     ...RATE_LIMIT_CONFIG[environment],
@@ -169,80 +181,36 @@ export function createRateLimiter(customConfig = {}) {
   return rateLimit({
     ...config,
     handler: createRateLimitHandler('general'),
-    keyGenerator: (req) => {
-      // Use combination of IP and user ID if available
-      const baseKey = req.ip || req.connection.remoteAddress || 'unknown';
-      const userKey = req.user?.id ? `user:${req.user.id}` : '';
-      return userKey ? `${baseKey}:${userKey}` : baseKey;
-    },
-    onLimitReached: (req) => {
-      logger.warn('Rate limit reached', {
-        ip: req.ip,
-        userAgent: req.get('User-Agent'),
-        url: req.originalUrl,
-        userId: req.user?.id || null,
-      });
-    },
   });
 }
 
 /**
  * Create auth-specific rate limiters
  */
-export const authRateLimiters = {
+const authRateLimiters = {
   login: rateLimit({
     ...AUTH_RATE_LIMITS.login,
     handler: createRateLimitHandler('login'),
-    keyGenerator: (req) => {
-      // For login, use IP + username/email combination
-      const ip = req.ip || 'unknown';
-      const identifier = req.body?.username || req.body?.email || req.body?.identifier || '';
-      return `login:${ip}:${identifier.toLowerCase()}`;
-    },
   }),
 
   register: rateLimit({
     ...AUTH_RATE_LIMITS.register,
     handler: createRateLimitHandler('register'),
-    keyGenerator: (req) => {
-      // For registration, use IP + email combination
-      const ip = req.ip || 'unknown';
-      const email = req.body?.email || '';
-      return `register:${ip}:${email.toLowerCase()}`;
-    },
   }),
 
   passwordReset: rateLimit({
     ...AUTH_RATE_LIMITS.passwordReset,
     handler: createRateLimitHandler('passwordReset'),
-    keyGenerator: (req) => {
-      // For password reset, use IP + email combination
-      const ip = req.ip || 'unknown';
-      const email = req.body?.email || '';
-      return `reset:${ip}:${email.toLowerCase()}`;
-    },
   }),
 
   tokenRefresh: rateLimit({
     ...AUTH_RATE_LIMITS.tokenRefresh,
     handler: createRateLimitHandler('tokenRefresh'),
-    keyGenerator: (req) => {
-      // For token refresh, use IP + user ID
-      const ip = req.ip || 'unknown';
-      const userId = req.user?.id || req.body?.userId || '';
-      return `refresh:${ip}:${userId}`;
-    },
   }),
 
   profileUpdate: rateLimit({
     ...AUTH_RATE_LIMITS.profileUpdate,
     handler: createRateLimitHandler('profileUpdate'),
-    keyGenerator: (req) => {
-      // For profile updates, primarily use user ID
-      const userId = req.user?.id || '';
-      const ip = req.ip || 'unknown';
-      return userId ? `profile:${userId}` : `profile:${ip}`;
-    },
   }),
 };
 
@@ -251,49 +219,31 @@ export const authRateLimiters = {
  * @param {Object} customConfig - Custom configuration
  * @returns {Function} - Express slow down middleware
  */
-export function createSlowDown(customConfig = {}) {
+function createSlowDown(customConfig = {}) {
   const environment = getCurrentEnvironment();
   const isDev = isDevelopment();
 
+  const baseDelay = isDev ? 100 : 500;
   const defaultConfig = {
     windowMs: 15 * 60 * 1000, // 15 minutes
     delayAfter: isDev ? 10 : 2, // Allow 2 requests per window in prod, 10 in dev
-    delayMs: isDev ? 100 : 500, // Delay subsequent requests by 500ms in prod, 100ms in dev
+    delayMs: () => baseDelay, // Use new syntax: constant delay function
     maxDelayMs: isDev ? 2000 : 10000, // Maximum delay of 10 seconds in prod, 2 seconds in dev
     skipFailedRequests: false,
     skipSuccessfulRequests: false,
+    validate: { delayMs: false }, // Disable delayMs warning
   };
 
   const config = { ...defaultConfig, ...customConfig };
 
-  return slowDown({
-    ...config,
-    onLimitReached: (req, res) => {
-      logger.warn('Slow down limit reached', {
-        ip: req.ip,
-        userAgent: req.get('User-Agent'),
-        url: req.originalUrl,
-        delay: res.getHeader('Retry-After'),
-        userId: req.user?.id || null,
-      });
-
-      // Add tracing information
-      withSpan('SLOW_DOWN_LIMIT', {}, async () => {
-        addSpanAttributes({
-          'slow_down.triggered': true,
-          'slow_down.ip': req.ip,
-          'slow_down.delay_ms': config.delayMs,
-        });
-      });
-    },
-  });
+  return slowDown(config);
 }
 
 /**
  * Create IP-based rate limiter for suspicious activity
  * @returns {Function} - Express rate limiting middleware
  */
-export function createSuspiciousActivityLimiter() {
+function createSuspiciousActivityLimiter() {
   return rateLimit({
     windowMs: 60 * 60 * 1000, // 1 hour
     max: isProduction() ? 20 : 100, // Very restrictive for suspicious IPs
@@ -324,7 +274,7 @@ export function createSuspiciousActivityLimiter() {
  * Express middleware to apply appropriate rate limiting based on request type
  * @returns {Function} - Express middleware
  */
-export function smartRateLimiter() {
+function smartRateLimiter() {
   return (req, res, next) => {
     const path = req.path.toLowerCase();
     const method = req.method.toUpperCase();
@@ -359,7 +309,7 @@ export function smartRateLimiter() {
  * Get rate limiting statistics
  * @returns {Object} - Rate limiting statistics
  */
-export function getRateLimitStats() {
+function getRateLimitStats() {
   return {
     service: 'auth-service',
     environment: getCurrentEnvironment(),
@@ -373,3 +323,13 @@ export function getRateLimitStats() {
     },
   };
 }
+
+// Export all functions
+export {
+  createRateLimiter,
+  authRateLimiters,
+  createSlowDown,
+  createSuspiciousActivityLimiter,
+  smartRateLimiter,
+  getRateLimitStats,
+};

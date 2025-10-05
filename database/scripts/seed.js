@@ -109,9 +109,8 @@ class AuthDatabaseSeeder {
                     id, user_id, email, password_hash, salt,
                     is_verified, is_active, failed_login_attempts,
                     locked_until, password_reset_token, password_reset_expires,
-                    verification_token, verification_expires, two_factor_enabled,
-                    two_factor_secret, created_at, updated_at
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+                    verification_token, verification_expires, created_at, updated_at
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
             `,
         [
           user.id,
@@ -127,8 +126,6 @@ class AuthDatabaseSeeder {
           user.password_reset_expires,
           user.verification_token,
           user.verification_expires,
-          user.two_factor_enabled,
-          user.two_factor_secret,
           user.created_at,
           user.updated_at,
         ]

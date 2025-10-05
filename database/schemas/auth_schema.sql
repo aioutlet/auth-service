@@ -18,8 +18,6 @@ CREATE TABLE IF NOT EXISTS auth.users (
     password_reset_expires TIMESTAMP,
     verification_token VARCHAR(255),
     verification_expires TIMESTAMP,
-    two_factor_enabled BOOLEAN DEFAULT FALSE,
-    two_factor_secret VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

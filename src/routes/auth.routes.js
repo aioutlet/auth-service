@@ -1,16 +1,16 @@
 import express from 'express';
-import passport from 'passport';
 import * as authController from '../controllers/auth.controller.js';
-import authMiddleware, { authorizeRoles } from '../middlewares/auth.middleware.js';
+import { authMiddleware, authorizeRoles } from '../middlewares/auth.middleware.js';
 import { requireCsrfToken } from '../middlewares/csrf.middleware.js'; // add import
-import {
-  authRateLimit,
-  passwordRateLimit,
-  registrationRateLimit,
-  emailActionsRateLimit,
-  tokenRefreshRateLimit,
-  authSlowDown,
-} from '../middlewares/rateLimit.middleware.js';
+import { authRateLimiters, createSlowDown } from '../middlewares/rateLimit.middleware.js';
+
+// Create rate limiters
+const authRateLimit = authRateLimiters.login;
+const passwordRateLimit = authRateLimiters.passwordReset;
+const registrationRateLimit = authRateLimiters.register;
+const emailActionsRateLimit = authRateLimiters.profileUpdate; // Use profileUpdate for email actions
+const tokenRefreshRateLimit = authRateLimiters.tokenRefresh;
+const authSlowDown = createSlowDown();
 
 const router = express.Router();
 
@@ -36,13 +36,5 @@ router
   .get(emailActionsRateLimit, authController.reactivateAccount);
 router.delete('/account', authMiddleware, authController.deleteAccount);
 router.delete('/users/:id', authMiddleware, authorizeRoles('admin'), authController.adminDeleteUser);
-
-// Social login
-router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
-router.get('/google/callback', passport.authenticate('google', { session: false }), authController.socialCallback);
-router.get('/facebook', passport.authenticate('facebook', { scope: ['email'] }));
-router.get('/facebook/callback', passport.authenticate('facebook', { session: false }), authController.socialCallback);
-router.get('/twitter', passport.authenticate('twitter'));
-router.get('/twitter/callback', passport.authenticate('twitter', { session: false }), authController.socialCallback);
 
 export default router;

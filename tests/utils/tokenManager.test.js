@@ -160,7 +160,7 @@ describe.skip('tokenManager', () => {
       expect(res.cookie).toHaveBeenCalledWith(
         expect.any(String),
         expect.any(String),
-        expect.objectContaining({ secure: true })
+        expect.objectContaining({ secure: true }),
       );
       
       process.env.NODE_ENV = originalEnv;

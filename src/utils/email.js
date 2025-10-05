@@ -12,7 +12,7 @@ if (process.env.EMAIL_PROVIDER === 'smtp') {
     },
   });
 } else {
-  throw new Error('Unsupported EMAIL_PROVIDER: ' + process.env.EMAIL_PROVIDER);
+  throw new Error(`Unsupported EMAIL_PROVIDER: ${process.env.EMAIL_PROVIDER}`);
 }
 
 export function sendMail({ to, subject, text, html }) {

@@ -4,8 +4,6 @@ import crypto from 'crypto';
 import CsrfToken from '../models/csrfToken.model.js';
 import mongoose from 'mongoose';
 
-const JWT_ALGORITHM = process.env.JWT_ALGORITHM || 'HS256';
-
 // --- Stateless JWT helpers ---
 export function signToken(payload, expiresIn = '15m') {
   return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn });
@@ -33,7 +31,7 @@ export function issueJwtToken(req, res, user) {
       email: user.email,
       roles: user.roles,
     },
-    '15m'
+    '15m',
   );
   res.cookie('jwt', token, {
     httpOnly: true,
@@ -71,7 +69,7 @@ export async function issueRefreshToken(req, res, user) {
 export async function issueCsrfToken(req, res, user) {
   // if (!req.cookies['csrfToken']) {
   const csrfToken = crypto.randomBytes(24).toString('hex');
-  let userId = user?._id || user?.id;
+  const userId = user?._id || user?.id;
   if (userId && mongoose.Types.ObjectId.isValid(userId)) {
     await CsrfToken.create({
       token: csrfToken,

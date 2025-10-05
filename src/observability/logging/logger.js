@@ -88,7 +88,7 @@ class Logger {
         new winston.transports.Console({
           format: this.config.format === 'json' ? createJsonFormat(this.config) : createConsoleFormat(this.config),
           level: this.config.logLevel.toLowerCase(),
-        })
+        }),
       );
     }
 
@@ -99,7 +99,7 @@ class Logger {
           filename: this.config.filePath,
           format: createJsonFormat(this.config),
           level: this.config.logLevel.toLowerCase(),
-        })
+        }),
       );
     }
 
@@ -111,12 +111,12 @@ class Logger {
       exceptionHandlers.push(
         new winston.transports.File({
           filename: this.config.filePath.replace('.log', '-exceptions.log'),
-        })
+        }),
       );
       rejectionHandlers.push(
         new winston.transports.File({
           filename: this.config.filePath.replace('.log', '-rejections.log'),
-        })
+        }),
       );
     }
 
@@ -124,12 +124,12 @@ class Logger {
       exceptionHandlers.push(
         new winston.transports.Console({
           format: createConsoleFormat(this.config),
-        })
+        }),
       );
       rejectionHandlers.push(
         new winston.transports.Console({
           format: createConsoleFormat(this.config),
-        })
+        }),
       );
     }
 

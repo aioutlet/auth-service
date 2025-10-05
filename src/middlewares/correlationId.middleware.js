@@ -21,4 +21,5 @@ const correlationIdMiddleware = (req, res, next) => {
   next();
 };
 
-export default correlationIdMiddleware;
+// Export all functions
+export { correlationIdMiddleware };

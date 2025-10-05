@@ -52,11 +52,11 @@ export const mockFetch = (responseData, status = 200, ok = true) => {
       text: () => Promise.resolve(JSON.stringify(responseData)),
       headers: {
         get: (header) => {
-          if (header === 'content-type') return 'application/json';
+          if (header === 'content-type') {return 'application/json';}
           return null;
         },
       },
-    })
+    }),
   );
 };
 

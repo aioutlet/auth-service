@@ -7,8 +7,8 @@ import {
   issueCsrfToken as issueCsrfTokenConsistent,
 } from '../utils/tokenManager.js';
 import RefreshToken from '../models/refreshToken.model.js';
-import asyncHandler from '../middlewares/asyncHandler.js';
-import { getUserByEmail, getUserById, createUser, getUserBySocial } from '../services/userServiceClient.js';
+import { asyncHandler } from '../middlewares/asyncHandler.js';
+import { getUserByEmail, getUserById, createUser } from '../services/userServiceClient.js';
 import { sendMail } from '../utils/email.js';
 import authValidator from '../validators/auth.validator.js';
 import logger from '../utils/logger.js';
@@ -127,9 +127,13 @@ export const refreshToken = asyncHandler(async (req, res, next) => {
  */
 export const forgotPassword = asyncHandler(async (req, res, next) => {
   const { email } = req.body;
-  if (!email) return next(new ErrorResponse('Email is required', 400));
+  if (!email) {
+    return next(new ErrorResponse('Email is required', 400));
+  }
   const user = await getUserByEmail(email);
-  if (!user) return next(new ErrorResponse('User not found', 404));
+  if (!user) {
+    return next(new ErrorResponse('User not found', 404));
+  }
   const resetToken = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '1h' });
   const resetUrl = `${process.env.BASE_URL || 'http://localhost:4000'}/auth/password/reset?token=${resetToken}`;
   await sendMail({
@@ -148,7 +152,9 @@ export const forgotPassword = asyncHandler(async (req, res, next) => {
  */
 export const resetPassword = asyncHandler(async (req, res, next) => {
   const { token, newPassword } = req.body;
-  if (!token || !newPassword) return next(new ErrorResponse('Token and new password are required', 400));
+  if (!token || !newPassword) {
+    return next(new ErrorResponse('Token and new password are required', 400));
+  }
   let payload;
   try {
     payload = jwt.verify(token, process.env.JWT_SECRET);
@@ -156,7 +162,9 @@ export const resetPassword = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Invalid or expired token', 400));
   }
   const user = await getUserByEmail(payload.email);
-  if (!user) return next(new ErrorResponse('User not found', 404));
+  if (!user) {
+    return next(new ErrorResponse('User not found', 404));
+  }
   // Call user-service PATCH /users/ to update password (self-service endpoint)
   const resp = await fetch(`${process.env.USER_SERVICE_URL}/users/`, {
     method: 'PATCH',
@@ -181,7 +189,9 @@ export const changePassword = asyncHandler(async (req, res, next) => {
   logger.info(`old password: ${oldPassword}, new password: ${newPassword}`);
 
   const userId = req.user?.id;
-  if (!userId) return next(new ErrorResponse('Unauthorized', 401));
+  if (!userId) {
+    return next(new ErrorResponse('Unauthorized', 401));
+  }
 
   const validation = authValidator.validatePasswordChange(oldPassword, newPassword);
   if (!validation.valid) {
@@ -191,6 +201,15 @@ export const changePassword = asyncHandler(async (req, res, next) => {
   // Validate new password strength
   const passwordValidation = authValidator.isValidPassword(newPassword);
   if (!passwordValidation.valid) {
+    // If validator provides details, use them; otherwise use the error message
+    if (passwordValidation.details && passwordValidation.details.length > 0) {
+      return next(
+        new ErrorResponse(passwordValidation.error, 400, {
+          field: 'password',
+          requirements: passwordValidation.details,
+        })
+      );
+    }
     return next(new ErrorResponse(passwordValidation.error, 400));
   }
 
@@ -201,7 +220,9 @@ export const changePassword = asyncHandler(async (req, res, next) => {
   } else if (req.cookies && req.cookies.jwt) {
     jwtToken = req.cookies.jwt;
   }
-  if (!jwtToken) return next(new ErrorResponse('JWT missing', 401));
+  if (!jwtToken) {
+    return next(new ErrorResponse('JWT missing', 401));
+  }
 
   // Forward password change to user service PATCH /users with { password }
   const resp = await fetch(`${process.env.USER_SERVICE_URL}`, {
@@ -234,7 +255,9 @@ export const changePassword = asyncHandler(async (req, res, next) => {
  */
 export const verifyEmail = asyncHandler(async (req, res, next) => {
   const { token } = req.query;
-  if (!token) return next(new ErrorResponse('Token is required', 400));
+  if (!token) {
+    return next(new ErrorResponse('Token is required', 400));
+  }
   let payload;
   try {
     payload = jwt.verify(token, process.env.JWT_SECRET);
@@ -243,8 +266,12 @@ export const verifyEmail = asyncHandler(async (req, res, next) => {
   }
   // Mark user as verified in user service
   const user = await getUserByEmail(payload.email);
-  if (!user) return next(new ErrorResponse('User not found', 404));
-  if (user.isEmailVerified) return res.json({ message: 'Email already verified' });
+  if (!user) {
+    return next(new ErrorResponse('User not found', 404));
+  }
+  if (user.isEmailVerified) {
+    return res.json({ message: 'Email already verified' });
+  }
   // Issue a short-lived JWT for the user to authorize the PATCH
   const userJwt = signToken({ id: user._id, email: user.email, roles: user.roles }, '15m');
   const resp = await fetch(`${process.env.USER_SERVICE_URL}`, {
@@ -309,60 +336,6 @@ export const resendVerificationEmail = asyncHandler(async (req, res, next) => {
 });
 
 /**
- * @desc    Social login callback (if present)
- * @route   GET /auth/social/callback
- * @access  Public
- */
-export const socialCallback = asyncHandler(async (req, res, next) => {
-  // req.user is set by passport strategy
-  const { provider, id, email, name, firstName, lastName, displayName } = req.user || {};
-  if (!req.user || !req.user._id) {
-    return next(new ErrorResponse('User not found or missing _id after social login', 500));
-  }
-
-  let user = await getUserBySocial(provider, id);
-  if (!user) {
-    // Create new user with social login data
-    const userData = {
-      email,
-      social: { [provider]: { id } },
-      isEmailVerified: true,
-      roles: ['customer'],
-    };
-
-    // Handle name data from social provider
-    if (firstName) userData.firstName = firstName;
-    if (lastName) userData.lastName = lastName;
-    if (displayName) userData.displayName = displayName;
-
-    // Fallback: if we only have a single 'name' field, try to split it
-    if (name && !firstName && !lastName) {
-      const nameParts = name.split(' ');
-      if (nameParts.length >= 2) {
-        userData.firstName = nameParts[0];
-        userData.lastName = nameParts.slice(1).join(' ');
-      } else {
-        userData.firstName = name;
-      }
-      userData.displayName = name;
-    }
-
-    user = await createUser(userData);
-  }
-
-  if (!user || !user._id) {
-    return next(new ErrorResponse('User not found or missing _id after social login', 500));
-  }
-
-  // Issue tokens using consistent helpers
-  const token = issueJwtToken(req, res, user);
-  await issueRefreshToken(req, res, user);
-  await issueCsrfTokenConsistent(req, res, user);
-
-  res.json({ jwt: token, user });
-});
-
-/**
  * @desc    Get current authenticated user info
  * @route   GET /auth/me
  * @access  Private
@@ -379,17 +352,29 @@ export const me = asyncHandler((req, res) => {
  * @access  Public
  */
 export const register = asyncHandler(async (req, res, next) => {
-  const { email, password, firstName, lastName, displayName, addresses, paymentMethods, wishlist, preferences } =
-    req.body;
+  const { email, password, firstName, lastName, phoneNumber } = req.body;
 
   // Basic validation
   if (!email || !password) {
     return next(new ErrorResponse('Email and password are required', 400));
   }
 
+  if (!firstName || !lastName) {
+    return next(new ErrorResponse('First name and last name are required', 400));
+  }
+
   // Validate password strength
   const passwordValidation = authValidator.isValidPassword(password);
   if (!passwordValidation.valid) {
+    // If validator provides details, use them; otherwise use the error message
+    if (passwordValidation.details && passwordValidation.details.length > 0) {
+      return next(
+        new ErrorResponse(passwordValidation.error, 400, {
+          field: 'password',
+          requirements: passwordValidation.details,
+        })
+      );
+    }
     return next(new ErrorResponse(passwordValidation.error, 400));
   }
 
@@ -399,89 +384,96 @@ export const register = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('User already exists', 409));
   }
 
-  // Prepare user data with new model structure
+  // Prepare user data matching UI fields
   const userData = {
     email,
     password,
+    firstName,
+    lastName,
     isEmailVerified: false,
     roles: ['customer'], // Set default role for new users
   };
 
-  // Add name fields if provided
-  if (firstName) userData.firstName = firstName;
-  if (lastName) userData.lastName = lastName;
-  if (displayName) userData.displayName = displayName;
-
-  // Add multi-step wizard data if provided
-  if (addresses && Array.isArray(addresses) && addresses.length > 0) {
-    userData.addresses = addresses;
-  }
-
-  if (paymentMethods && Array.isArray(paymentMethods) && paymentMethods.length > 0) {
-    userData.paymentMethods = paymentMethods;
-  }
-
-  if (wishlist && Array.isArray(wishlist) && wishlist.length > 0) {
-    userData.wishlist = wishlist;
-  }
-
-  if (preferences && typeof preferences === 'object') {
-    userData.preferences = preferences;
+  // Add phone number if provided
+  if (phoneNumber) {
+    userData.phoneNumber = phoneNumber;
   }
 
   try {
     // Create user through user service (validation will be handled by the user service)
     const user = await createUser(userData);
-    if (!user) {
-      return next(new ErrorResponse('Failed to create user', 500));
-    }
 
     // Generate email verification token
     const verifyToken = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '1d' });
     const verifyUrl = `${process.env.BASE_URL || 'http://localhost:4000'}/api/auth/email/verify?token=${verifyToken}`;
 
-    await sendMail({
-      to: email,
-      subject: 'Verify your email',
-      text: `Please verify your email: ${verifyUrl}`,
-      html: `<p>Please verify your email: <a href="${verifyUrl}">${verifyUrl}</a></p>`,
-    });
+    // Try to send verification email, but don't fail registration if email fails
+    try {
+      await sendMail({
+        to: email,
+        subject: 'Verify your email',
+        text: `Please verify your email: ${verifyUrl}`,
+        html: `<p>Please verify your email: <a href="${verifyUrl}">${verifyUrl}</a></p>`,
+      });
+      logger.info('Verification email sent successfully', { email });
+    } catch (emailError) {
+      logger.warn('Failed to send verification email, but registration succeeded', {
+        email,
+        error: emailError.message,
+        verifyUrl, // Log the URL so admin can manually send it if needed
+      });
+    }
 
     logger.info('User registered successfully', {
       userId: user._id,
       email,
-      hasAddresses: !!addresses?.length,
-      hasPaymentMethods: !!paymentMethods?.length,
-      hasWishlist: !!wishlist?.length,
-      hasPreferences: !!preferences,
+      firstName,
+      lastName,
+      hasPhoneNumber: !!phoneNumber,
     });
 
     res.status(201).json({
       message: 'Registration successful, please verify your email.',
+      requiresVerification: true,
       user: {
         _id: user._id,
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
-        displayName: user.displayName,
+        phoneNumber: user.phoneNumber,
         isEmailVerified: user.isEmailVerified,
         roles: user.roles,
-        // Include counts of additional data for confirmation
-        addressCount: user.addresses?.length || 0,
-        paymentMethodCount: user.paymentMethods?.length || 0,
-        wishlistCount: user.wishlist?.length || 0,
-        hasPreferences: !!user.preferences,
       },
     });
   } catch (error) {
-    logger.error('Registration failed', { email, error: error.message });
+    logger.error('Registration failed', {
+      email,
+      error: error.message,
+      statusCode: error.statusCode,
+      details: error.details,
+      stack: error.stack,
+    });
 
-    // Check if it's a validation error from the user service
-    if (error.message && error.message.includes('validation')) {
-      return next(new ErrorResponse('Registration data validation failed. Please check your input data.', 400));
+    // Handle specific error types
+    if (error.statusCode === 503) {
+      return next(new ErrorResponse('User service is temporarily unavailable. Please try again later.', 503));
     }
 
-    return next(new ErrorResponse('Registration failed. Please try again.', 500));
+    if (error.statusCode === 400 || (error.message && error.message.includes('validation'))) {
+      const errorMsg = error.details?.error || error.message || 'Registration data validation failed';
+      return next(new ErrorResponse(errorMsg, 400));
+    }
+
+    if (error.statusCode === 409 || error.message.includes('duplicate') || error.message.includes('already exists')) {
+      return next(new ErrorResponse('A user with this email already exists', 409));
+    }
+
+    // Generic error with actual message for debugging in dev
+    const errorMsg =
+      process.env.NODE_ENV === 'development'
+        ? `Registration failed: ${error.message}`
+        : 'Registration failed. Please try again.';
+    return next(new ErrorResponse(errorMsg, error.statusCode || 500));
   }
 });
 
@@ -492,10 +484,16 @@ export const register = asyncHandler(async (req, res, next) => {
  */
 export const requestAccountReactivation = asyncHandler(async (req, res, next) => {
   const { email } = req.body;
-  if (!email) return next(new ErrorResponse('Email is required', 400));
+  if (!email) {
+    return next(new ErrorResponse('Email is required', 400));
+  }
   const user = await getUserByEmail(email);
-  if (!user) return next(new ErrorResponse('User not found', 404));
-  if (user.isActive) return next(new ErrorResponse('Account is already active.', 400));
+  if (!user) {
+    return next(new ErrorResponse('User not found', 404));
+  }
+  if (user.isActive) {
+    return next(new ErrorResponse('Account is already active.', 400));
+  }
   // Generate a short-lived reactivation token
   const reactivateToken = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '1h' });
   const reactivateUrl = `${process.env.BASE_URL || 'http://localhost:4000'}/auth/reactivate?token=${reactivateToken}`;
@@ -515,7 +513,9 @@ export const requestAccountReactivation = asyncHandler(async (req, res, next) =>
  */
 export const reactivateAccount = asyncHandler(async (req, res, next) => {
   const { token } = req.query;
-  if (!token) return next(new ErrorResponse('Token is required', 400));
+  if (!token) {
+    return next(new ErrorResponse('Token is required', 400));
+  }
   let payload;
   try {
     payload = jwt.verify(token, process.env.JWT_SECRET);
@@ -523,8 +523,12 @@ export const reactivateAccount = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Invalid or expired token', 400));
   }
   const user = await getUserByEmail(payload.email);
-  if (!user) return next(new ErrorResponse('User not found', 404));
-  if (user.isActive) return res.json({ message: 'Account is already active.' });
+  if (!user) {
+    return next(new ErrorResponse('User not found', 404));
+  }
+  if (user.isActive) {
+    return res.json({ message: 'Account is already active.' });
+  }
   // Issue a short-lived JWT for the user to authorize the PATCH
   const userJwt = signToken({ id: user._id, email: user.email, roles: user.roles }, '15m');
   const resp = await fetch(`${process.env.USER_SERVICE_URL}`, {
@@ -557,7 +561,9 @@ export const reactivateAccount = asyncHandler(async (req, res, next) => {
 export const deleteAccount = asyncHandler(async (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1] || req.cookies.jwt;
   const success = await import('../services/userServiceClient.js').then((m) => m.deleteUserSelf(token));
-  if (!success) return next(new ErrorResponse('User not found', 404));
+  if (!success) {
+    return next(new ErrorResponse('User not found', 404));
+  }
   res.status(204).send();
 });
 
@@ -570,6 +576,8 @@ export const adminDeleteUser = asyncHandler(async (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1] || req.cookies.jwt;
   const { id } = req.params;
   const success = await import('../services/userServiceClient.js').then((m) => m.deleteUserById(id, token));
-  if (!success) return next(new ErrorResponse('User not found', 404));
+  if (!success) {
+    return next(new ErrorResponse('User not found', 404));
+  }
   res.status(204).send();
 });

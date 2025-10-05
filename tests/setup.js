@@ -1,22 +1,16 @@
 // Global test setup and utilities
 import mongoose from 'mongoose';
+import dotenv from 'dotenv';
 
-// Mock environment variables for testing
-process.env.JWT_SECRET = 'test-jwt-secret-key-for-testing-only';
-process.env.JWT_ALGORITHM = 'HS256';
+// Load environment variables from .env file
+// This ensures tests validate the actual .env configuration
+dotenv.config();
+
+// Only override NODE_ENV to ensure we're in test mode
 process.env.NODE_ENV = 'test';
-process.env.SESSION_SECRET = 'test-session-secret';
-process.env.USER_SERVICE_URL = 'http://test-user-service';
-process.env.BASE_URL = 'http://localhost:4000';
-process.env.EMAIL_PROVIDER = 'smtp';
-process.env.SMTP_HOST = 'test-smtp-host';
-process.env.SMTP_PORT = '587';
-process.env.SMTP_USER = 'test-user';
-process.env.SMTP_PASS = 'test-pass';
-process.env.EMAIL_FROM = 'test@example.com';
 
-// Mock global mongoUrl for session store
-global.mongoUrl = 'mongodb://test:27017/auth-test';
+// Set global mongoUrl from loaded environment variables
+global.mongoUrl = process.env.MONGODB_URI || 'mongodb://localhost:27021/auth_service_local_db';
 
 // Clean up after each test
 afterEach(async () => {

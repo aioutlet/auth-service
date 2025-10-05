@@ -1,5 +1,3 @@
-import logger from '../utils/logger.js';
-// Input validation for auth endpoints placeholder
 const authValidator = {
   validatePasswordChange(oldPassword, newPassword) {
     if (!oldPassword || !newPassword) {
@@ -14,15 +12,24 @@ const authValidator = {
     if (typeof password !== 'string') {
       return { valid: false, error: 'Password must be a string' };
     }
-    if (password.trim().length < 6 || password.trim().length > 25) {
+
+    const trimmedPassword = password.trim();
+
+    // Check length first (most specific errors)
+    if (trimmedPassword.length < 6 || trimmedPassword.length > 25) {
       return { valid: false, error: 'Password must be between 6 and 25 characters' };
     }
+
+    // Check for at least one letter
     if (!/[A-Za-z]/.test(password)) {
       return { valid: false, error: 'Password must contain at least one letter' };
     }
+
+    // Check for at least one number
     if (!/\d/.test(password)) {
       return { valid: false, error: 'Password must contain at least one number' };
     }
+
     return { valid: true };
   },
 };
