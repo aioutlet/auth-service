@@ -3,6 +3,7 @@ import RefreshToken from '../models/refreshToken.model.js';
 import crypto from 'crypto';
 import CsrfToken from '../models/csrfToken.model.js';
 import mongoose from 'mongoose';
+import logger from '../observability/logging/index.js';
 
 // --- Stateless JWT helpers ---
 export function signToken(payload, expiresIn = '15m') {
@@ -12,7 +13,7 @@ export function signToken(payload, expiresIn = '15m') {
 export function verifyToken(token) {
   try {
     return jwt.verify(token, process.env.JWT_SECRET);
-  } catch (err) {
+  } catch {
     return null;
   }
 }
@@ -23,7 +24,7 @@ export function verifyToken(token) {
  * Returns the token string.
  */
 export function issueJwtToken(req, res, user) {
-  console.log('Issuing JWT for user:', user); // Debug log to inspect user object
+  logger.debug('Issuing JWT for user', req, { operation: 'issue_jwt', userId: user._id });
   const token = signToken(
     {
       id: user._id,
@@ -31,7 +32,7 @@ export function issueJwtToken(req, res, user) {
       email: user.email,
       roles: user.roles,
     },
-    '15m',
+    '15m'
   );
   res.cookie('jwt', token, {
     httpOnly: true,
@@ -44,11 +45,11 @@ export function issueJwtToken(req, res, user) {
 
 /**
  * Issues a refresh token, stores it in DB, and sets it as an HTTP-only cookie.
- * Returns the token string.
+ * Returns the refresh token document.
  */
 export async function issueRefreshToken(req, res, user) {
   const refreshToken = signToken({ id: user._id }, '7d');
-  await RefreshToken.create({
+  const refreshTokenDoc = await RefreshToken.create({
     user: user._id,
     token: refreshToken,
     expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
@@ -59,7 +60,7 @@ export async function issueRefreshToken(req, res, user) {
     sameSite: 'strict',
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   });
-  return refreshToken;
+  return refreshTokenDoc;
 }
 
 /**

@@ -1,7 +1,4 @@
-import dotenv from 'dotenv';
-import logger from '../utils/logger.js';
-
-dotenv.config();
+import logger from '../observability/logging/index.js';
 
 const USER_SERVICE_URL = process.env.USER_SERVICE_URL; // e.g. http://localhost:5000/users
 
@@ -27,7 +24,7 @@ export async function createUser(userData) {
       let errorDetails;
       try {
         errorDetails = await res.json();
-      } catch (e) {
+      } catch {
         errorDetails = { error: await res.text() };
       }
 

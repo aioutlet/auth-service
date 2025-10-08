@@ -4,13 +4,14 @@
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+import logger from './observability/logging/index.js';
 
 // Check if tracing should be enabled
 const environment = process.env.NODE_ENV || 'development';
 const enableTracing = process.env.ENABLE_TRACING !== 'false' && environment !== 'test';
 
 if (enableTracing) {
-  console.log('Initializing OpenTelemetry tracing...');
+  logger.info('Initializing OpenTelemetry tracing', null, { operation: 'tracing_init' });
 
   try {
     const sdk = new NodeSDK({
@@ -31,19 +32,19 @@ if (enableTracing) {
     });
 
     sdk.start();
-    console.log('✅ OpenTelemetry tracing initialized successfully');
+    logger.info('OpenTelemetry tracing initialized successfully', null, { operation: 'tracing_init' });
 
     // Graceful shutdown
     process.on('SIGTERM', () => {
       sdk
         .shutdown()
-        .then(() => console.log('Tracing terminated'))
-        .catch((error) => console.error('Error terminating tracing', error))
+        .then(() => logger.info('Tracing terminated', null, { operation: 'tracing_shutdown' }))
+        .catch((error) => logger.error('Error terminating tracing', null, { operation: 'tracing_shutdown', error }))
         .finally(() => process.exit(0));
     });
   } catch (error) {
-    console.warn('⚠️ Failed to initialize OpenTelemetry:', error.message);
+    logger.warn('Failed to initialize OpenTelemetry', null, { operation: 'tracing_init', error: error.message });
   }
 } else {
-  console.log('Tracing disabled for environment:', environment);
+  logger.info('Tracing disabled for environment', null, { operation: 'tracing_init', environment });
 }

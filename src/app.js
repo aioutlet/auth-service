@@ -5,7 +5,7 @@ import connectDB from './config/db.js';
 import authRoutes from './routes/auth.routes.js';
 import homeRoutes from './routes/home.routes.js';
 import cookieParser from 'cookie-parser';
-import logger from './utils/logger.js';
+import logger from './observability/logging/index.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 import { correlationIdMiddleware } from './middlewares/correlationId.middleware.js';
 import { createRateLimiter } from './middlewares/rateLimit.middleware.js';

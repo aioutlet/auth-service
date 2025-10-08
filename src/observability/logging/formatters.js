@@ -148,7 +148,7 @@ export function createJsonFormat(config) {
     winston.format.printf((info) => {
       const unifiedEntry = createUnifiedLogEntry(config, info);
       return JSON.stringify(unifiedEntry);
-    }),
+    })
   );
 }
 
@@ -164,7 +164,7 @@ export function createConsoleFormat(config) {
       const unifiedEntry = createUnifiedLogEntry(config, info);
       const message = formatConsoleMessage(unifiedEntry);
 
-      return config.environment === 'development' ? colorizeLevel(unifiedEntry.level.toLowerCase(), message) : message;
-    }),
+      return config.environment === 'development' ? colorizeLevel(message, unifiedEntry.level.toLowerCase()) : message;
+    })
   );
 }

@@ -1,5 +1,5 @@
 // Comprehensive tests for Auth Controller
-import { createMockReqRes, createMockNext, createMockUser } from './utils/testHelpers.js';
+import { createMockReqRes, createMockNext, createMockUser } from '../utils/testHelpers.js';
 
 describe('Auth Controller', () => {
   beforeEach(() => {
@@ -8,72 +8,72 @@ describe('Auth Controller', () => {
 
   describe('Basic Controller Structure', () => {
     it('should export login function', async () => {
-      const authController = await import('../src/controllers/auth.controller.js');
+      const authController = await import('../../src/controllers/auth.controller.js');
       expect(typeof authController.login).toBe('function');
     });
 
     it('should export logout function', async () => {
-      const authController = await import('../src/controllers/auth.controller.js');
+      const authController = await import('../../src/controllers/auth.controller.js');
       expect(typeof authController.logout).toBe('function');
     });
 
     it('should export register function', async () => {
-      const authController = await import('../src/controllers/auth.controller.js');
+      const authController = await import('../../src/controllers/auth.controller.js');
       expect(typeof authController.register).toBe('function');
     });
 
     it('should export me function', async () => {
-      const authController = await import('../src/controllers/auth.controller.js');
+      const authController = await import('../../src/controllers/auth.controller.js');
       expect(typeof authController.me).toBe('function');
     });
 
     it('should export forgotPassword function', async () => {
-      const authController = await import('../src/controllers/auth.controller.js');
+      const authController = await import('../../src/controllers/auth.controller.js');
       expect(typeof authController.forgotPassword).toBe('function');
     });
 
     it('should export resetPassword function', async () => {
-      const authController = await import('../src/controllers/auth.controller.js');
+      const authController = await import('../../src/controllers/auth.controller.js');
       expect(typeof authController.resetPassword).toBe('function');
     });
 
     it('should export changePassword function', async () => {
-      const authController = await import('../src/controllers/auth.controller.js');
+      const authController = await import('../../src/controllers/auth.controller.js');
       expect(typeof authController.changePassword).toBe('function');
     });
 
     it('should export verifyEmail function', async () => {
-      const authController = await import('../src/controllers/auth.controller.js');
+      const authController = await import('../../src/controllers/auth.controller.js');
       expect(typeof authController.verifyEmail).toBe('function');
     });
 
     it('should export resendVerificationEmail function', async () => {
-      const authController = await import('../src/controllers/auth.controller.js');
+      const authController = await import('../../src/controllers/auth.controller.js');
       expect(typeof authController.resendVerificationEmail).toBe('function');
     });
 
     it('should export refreshToken function', async () => {
-      const authController = await import('../src/controllers/auth.controller.js');
+      const authController = await import('../../src/controllers/auth.controller.js');
       expect(typeof authController.refreshToken).toBe('function');
     });
 
     it('should export requestAccountReactivation function', async () => {
-      const authController = await import('../src/controllers/auth.controller.js');
+      const authController = await import('../../src/controllers/auth.controller.js');
       expect(typeof authController.requestAccountReactivation).toBe('function');
     });
 
     it('should export reactivateAccount function', async () => {
-      const authController = await import('../src/controllers/auth.controller.js');
+      const authController = await import('../../src/controllers/auth.controller.js');
       expect(typeof authController.reactivateAccount).toBe('function');
     });
 
     it('should export deleteAccount function', async () => {
-      const authController = await import('../src/controllers/auth.controller.js');
+      const authController = await import('../../src/controllers/auth.controller.js');
       expect(typeof authController.deleteAccount).toBe('function');
     });
 
     it('should export adminDeleteUser function', async () => {
-      const authController = await import('../src/controllers/auth.controller.js');
+      const authController = await import('../../src/controllers/auth.controller.js');
       expect(typeof authController.adminDeleteUser).toBe('function');
     });
   });

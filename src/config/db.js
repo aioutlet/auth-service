@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import logger from '../utils/logger.js';
+import logger from '../observability/logging/index.js';
 
 const connectDB = async () => {
   try {

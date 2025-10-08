@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
+import logger from '../observability/logging/index.js';
 
 /**
  * Middleware to handle correlation IDs for distributed tracing
@@ -16,7 +17,11 @@ const correlationIdMiddleware = (req, res, next) => {
   // Add to locals for access in templates/views if needed
   res.locals.correlationId = correlationId;
 
-  console.log(`[${correlationId}] ${req.method} ${req.path} - Processing request`);
+  logger.debug('Processing request', req, {
+    operation: 'http_request',
+    method: req.method,
+    path: req.path,
+  });
 
   next();
 };

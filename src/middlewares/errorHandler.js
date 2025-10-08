@@ -1,11 +1,11 @@
-import logger from '../utils/logger.js';
+import logger from '../observability/logging/index.js';
 import ErrorResponse from '../utils/ErrorResponse.js';
 
 /**
  * Global error handler middleware for the auth service
  * Handles different types of errors and provides environment-specific responses
  */
-const errorHandler = (err, req, res, next) => {
+const errorHandler = (err, req, res, _next) => {
   const isDev = process.env.NODE_ENV === 'development';
   let error = { ...err };
   error.message = err.message;
@@ -72,13 +72,16 @@ const errorHandler = (err, req, res, next) => {
       statusCode: error.statusCode,
       ...(err.code && { code: err.code }),
     };
-    // In development, log to console for immediate visibility
-    console.error('\n🚨 API Error:', {
-      message: error.message,
-      statusCode: error.statusCode,
-      validationErrors: error.validationErrors,
-      path: req.originalUrl,
-      method: req.method,
+    // In development, log detailed error info
+    logger.error('API Error', req, {
+      operation: 'error_handler',
+      error: {
+        message: error.message,
+        statusCode: error.statusCode,
+        validationErrors: error.validationErrors,
+        path: req.originalUrl,
+        method: req.method,
+      },
     });
   }
 

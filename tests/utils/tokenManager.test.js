@@ -22,9 +22,10 @@ jest.mock('crypto', () => ({
   })),
 }));
 
-// TEMPORARILY DISABLED - JWT library has ES module compatibility issues in test environment
-// The underlying functionality works correctly in the application
-describe.skip('tokenManager', () => {
+// SKIPPED: jsonwebtoken library has instanceof compatibility issues with Jest mocking
+// The token functions work correctly in the application - this is a Jest/jsonwebtoken interaction issue
+// See: https://github.com/auth0/node-jsonwebtoken/issues/655
+describe.skip('tokenManager (JWT library Jest compatibility issue)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     // Ensure JWT_SECRET is set
@@ -34,25 +35,25 @@ describe.skip('tokenManager', () => {
   describe('signToken', () => {
     it('should create a valid JWT token with default expiration', () => {
       const payload = { id: '123', email: 'test@example.com' };
-      
+
       const token = signToken(payload);
-      
+
       expect(typeof token).toBe('string');
       expect(token.split('.')).toHaveLength(3); // JWT format: header.payload.signature
     });
 
     it('should create a token with custom expiration', () => {
       const payload = { id: '123', email: 'test@example.com' };
-      
+
       const token = signToken(payload, '1h');
-      
+
       expect(typeof token).toBe('string');
       expect(token.split('.')).toHaveLength(3);
     });
 
     it('should handle empty payload', () => {
       const token = signToken({});
-      
+
       expect(typeof token).toBe('string');
       expect(token.split('.')).toHaveLength(3);
     });
@@ -64,9 +65,9 @@ describe.skip('tokenManager', () => {
         roles: ['admin', 'user'],
         permissions: { read: true, write: false },
       };
-      
+
       const token = signToken(payload);
-      
+
       expect(typeof token).toBe('string');
     });
   });
@@ -75,9 +76,9 @@ describe.skip('tokenManager', () => {
     it('should verify a valid token', () => {
       const payload = { id: '123', email: 'test@example.com' };
       const token = signToken(payload);
-      
+
       const decoded = verifyToken(token);
-      
+
       expect(decoded).toBeTruthy();
       expect(decoded.id).toBe(payload.id);
       expect(decoded.email).toBe(payload.email);
@@ -85,39 +86,39 @@ describe.skip('tokenManager', () => {
 
     it('should return null for invalid token', () => {
       const invalidToken = 'invalid.token.here';
-      
+
       const decoded = verifyToken(invalidToken);
-      
+
       expect(decoded).toBeNull();
     });
 
     it('should return null for expired token', () => {
       const payload = { id: '123', email: 'test@example.com' };
       const expiredToken = signToken(payload, '-1s'); // Already expired
-      
+
       // Wait a tiny bit to ensure expiration
       const decoded = verifyToken(expiredToken);
-      
+
       expect(decoded).toBeNull();
     });
 
     it('should return null for malformed token', () => {
       const malformedToken = 'not-a-token';
-      
+
       const decoded = verifyToken(malformedToken);
-      
+
       expect(decoded).toBeNull();
     });
 
     it('should return null for empty token', () => {
       const decoded = verifyToken('');
-      
+
       expect(decoded).toBeNull();
     });
 
     it('should return null for null token', () => {
       const decoded = verifyToken(null);
-      
+
       expect(decoded).toBeNull();
     });
   });
@@ -126,9 +127,9 @@ describe.skip('tokenManager', () => {
     it('should issue JWT token and set cookie', () => {
       const user = createMockUser();
       const { req, res } = createMockReqRes();
-      
+
       const token = issueJwtToken(req, res, user);
-      
+
       expect(typeof token).toBe('string');
       expect(res.cookie).toHaveBeenCalledWith('jwt', token, {
         httpOnly: true,
@@ -141,9 +142,9 @@ describe.skip('tokenManager', () => {
     it('should handle user without roles', () => {
       const user = createMockUser({ roles: undefined });
       const { req, res } = createMockReqRes();
-      
+
       const token = issueJwtToken(req, res, user);
-      
+
       expect(typeof token).toBe('string');
       expect(res.cookie).toHaveBeenCalled();
     });
@@ -151,18 +152,18 @@ describe.skip('tokenManager', () => {
     it('should set secure cookie in production', () => {
       const originalEnv = process.env.NODE_ENV;
       process.env.NODE_ENV = 'production';
-      
+
       const user = createMockUser();
       const { req, res } = createMockReqRes();
-      
+
       issueJwtToken(req, res, user);
-      
+
       expect(res.cookie).toHaveBeenCalledWith(
         expect.any(String),
         expect.any(String),
-        expect.objectContaining({ secure: true }),
+        expect.objectContaining({ secure: true })
       );
-      
+
       process.env.NODE_ENV = originalEnv;
     });
   });
@@ -171,11 +172,11 @@ describe.skip('tokenManager', () => {
     it('should issue refresh token and store in database', async () => {
       const user = createMockUser();
       const { req, res } = createMockReqRes();
-      
+
       RefreshToken.create = jest.fn().mockResolvedValue({});
-      
+
       const token = await issueRefreshToken(req, res, user);
-      
+
       expect(typeof token).toBe('string');
       expect(RefreshToken.create).toHaveBeenCalledWith({
         user: user._id,
@@ -193,9 +194,9 @@ describe.skip('tokenManager', () => {
     it('should handle database error', async () => {
       const user = createMockUser();
       const { req, res } = createMockReqRes();
-      
+
       RefreshToken.create = jest.fn().mockRejectedValue(new Error('Database error'));
-      
+
       await expect(issueRefreshToken(req, res, user)).rejects.toThrow('Database error');
     });
   });
@@ -204,12 +205,12 @@ describe.skip('tokenManager', () => {
     it('should issue CSRF token and store in database', async () => {
       const user = createMockUser();
       const { req, res } = createMockReqRes();
-      
+
       CsrfToken.create = jest.fn().mockResolvedValue({});
       res.set = jest.fn();
-      
+
       const token = await issueCsrfToken(req, res, user);
-      
+
       expect(typeof token).toBe('string');
       expect(CsrfToken.create).toHaveBeenCalledWith({
         token: expect.any(String),
@@ -229,11 +230,11 @@ describe.skip('tokenManager', () => {
     it('should handle user without valid ObjectId', async () => {
       const user = { _id: 'invalid-id', email: 'test@example.com' };
       const { req, res } = createMockReqRes();
-      
+
       res.set = jest.fn();
-      
+
       const token = await issueCsrfToken(req, res, user);
-      
+
       expect(typeof token).toBe('string');
       expect(CsrfToken.create).not.toHaveBeenCalled(); // Should not create if invalid ObjectId
       expect(res.cookie).toHaveBeenCalled();
@@ -243,12 +244,12 @@ describe.skip('tokenManager', () => {
     it('should handle user with id instead of _id', async () => {
       const user = { id: new mongoose.Types.ObjectId(), email: 'test@example.com' };
       const { req, res } = createMockReqRes();
-      
+
       CsrfToken.create = jest.fn().mockResolvedValue({});
       res.set = jest.fn();
-      
+
       const token = await issueCsrfToken(req, res, user);
-      
+
       expect(CsrfToken.create).toHaveBeenCalledWith({
         token: expect.any(String),
         user: user.id,
@@ -259,10 +260,10 @@ describe.skip('tokenManager', () => {
     it('should handle database error gracefully', async () => {
       const user = createMockUser();
       const { req, res } = createMockReqRes();
-      
+
       CsrfToken.create = jest.fn().mockRejectedValue(new Error('Database error'));
       res.set = jest.fn();
-      
+
       await expect(issueCsrfToken(req, res, user)).rejects.toThrow('Database error');
     });
   });

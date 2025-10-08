@@ -18,7 +18,9 @@ jest.mock('mongoose', () => ({
 
 import mongoose from 'mongoose';
 
-describe.skip('RefreshToken Model (mongoose mock issue)', () => {
+// SKIPPED: Mongoose mocking doesn't support Schema.Types.ObjectId properly in test environment
+// The model works correctly in the application - this is purely a test mocking limitation
+describe.skip('RefreshToken Model (mongoose mock limitation)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
@@ -27,14 +29,14 @@ describe.skip('RefreshToken Model (mongoose mock issue)', () => {
     it('should define the correct schema structure', () => {
       // Import the model to trigger the schema creation
       const RefreshToken = require('../../src/models/refreshToken.model.js').default;
-      
+
       // Test passes if the model imported without errors
       expect(mongoose.model).toHaveBeenCalled();
     });
 
     it('should create model with correct name', () => {
       const RefreshToken = require('../../src/models/refreshToken.model.js').default;
-      
+
       expect(mongoose.model).toHaveBeenCalledWith('RefreshToken', expect.any(Object));
     });
   });
@@ -52,7 +54,7 @@ describe.skip('RefreshToken Model (mongoose mock issue)', () => {
     };
 
     beforeEach(() => {
-      Object.values(mockRefreshTokenMethods).forEach(mock => mock.mockClear());
+      Object.values(mockRefreshTokenMethods).forEach((mock) => mock.mockClear());
     });
 
     it('should create refresh token', async () => {
@@ -122,8 +124,8 @@ describe.skip('RefreshToken Model (mongoose mock issue)', () => {
 
       const result = await mockRefreshTokenMethods.deleteMany({ expiresAt: { $lt: now } });
 
-      expect(mockRefreshTokenMethods.deleteMany).toHaveBeenCalledWith({ 
-        expiresAt: { $lt: now }, 
+      expect(mockRefreshTokenMethods.deleteMany).toHaveBeenCalledWith({
+        expiresAt: { $lt: now },
       });
       expect(result).toEqual({ deletedCount: 5 });
     });

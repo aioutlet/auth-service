@@ -3,6 +3,7 @@ import { NodeSDK } from '@opentelemetry/sdk-node';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import process from 'process';
+import logger from '../logging/index.js';
 
 // SDK initialization
 let sdk = null;
@@ -32,10 +33,10 @@ export function initializeTracing() {
     });
 
     sdk.start();
-    console.log('OpenTelemetry tracing initialized');
+    logger.info('OpenTelemetry tracing initialized', null, { operation: 'tracing_init' });
     return true;
   } catch (error) {
-    console.warn('Failed to initialize OpenTelemetry:', error.message);
+    logger.warn('Failed to initialize OpenTelemetry', null, { operation: 'tracing_init', error: error.message });
     return false;
   }
 }
@@ -48,8 +49,8 @@ export function shutdownTracing() {
   if (sdk) {
     return sdk
       .shutdown()
-      .then(() => console.log('Tracing terminated'))
-      .catch((error) => console.error('Error terminating tracing', error));
+      .then(() => logger.info('Tracing terminated', null, { operation: 'tracing_shutdown' }))
+      .catch((error) => logger.error('Error terminating tracing', null, { operation: 'tracing_shutdown', error }));
   }
   return Promise.resolve();
 }

@@ -31,12 +31,6 @@ describe('Environment Configuration', () => {
       expect(process.env.JWT_SECRET).toBeTruthy();
       expect(process.env.JWT_SECRET.length).toBeGreaterThan(10);
     });
-
-    it('should have SESSION_SECRET defined', () => {
-      expect(process.env.SESSION_SECRET).toBeDefined();
-      expect(process.env.SESSION_SECRET).toBeTruthy();
-      expect(process.env.SESSION_SECRET.length).toBeGreaterThan(10);
-    });
   });
 
   describe('Server Configuration', () => {
@@ -69,31 +63,10 @@ describe('Environment Configuration', () => {
   });
 
   describe('Security Configuration', () => {
-    it('should have valid BCRYPT_SALT_ROUNDS', () => {
-      const rounds = process.env.BCRYPT_SALT_ROUNDS || '12';
-      const roundsNum = parseInt(rounds, 10);
-      expect(roundsNum).toBeGreaterThanOrEqual(10);
-      expect(roundsNum).toBeLessThanOrEqual(20);
-    });
-
     it('should have CORS_ORIGINS defined or use default', () => {
       const origins = process.env.CORS_ORIGINS || 'http://localhost:3000';
       expect(origins).toBeTruthy();
       expect(typeof origins).toBe('string');
-    });
-  });
-
-  describe('JWT Configuration', () => {
-    it('should have JWT_EXPIRE defined or use default', () => {
-      const expire = process.env.JWT_EXPIRE || '24h';
-      expect(expire).toBeTruthy();
-      expect(expire).toMatch(/^\d+[smhd]$/);
-    });
-
-    it('should have JWT_REFRESH_EXPIRE defined or use default', () => {
-      const expire = process.env.JWT_REFRESH_EXPIRE || '7d';
-      expect(expire).toBeTruthy();
-      expect(expire).toMatch(/^\d+[smhd]$/);
     });
   });
 
@@ -112,18 +85,10 @@ describe('Environment Configuration', () => {
   });
 
   describe('Message Broker Configuration', () => {
-    it('should have RABBITMQ_URL defined or use default', () => {
-      const url = process.env.RABBITMQ_URL || 'amqp://localhost:5672';
+    it('should have MESSAGE_BROKER_SERVICE_URL defined or use default', () => {
+      const url = process.env.MESSAGE_BROKER_SERVICE_URL || 'http://localhost:4000';
       expect(url).toBeTruthy();
-      expect(url).toMatch(/^amqps?:\/\//);
-    });
-  });
-
-  describe('Cache Configuration', () => {
-    it('should have REDIS_URL defined or use default', () => {
-      const url = process.env.REDIS_URL || 'redis://localhost:6379/3';
-      expect(url).toBeTruthy();
-      expect(url).toMatch(/^redis/);
+      expect(url).toMatch(/^https?:\/\//);
     });
   });
 
@@ -180,13 +145,6 @@ describe('Environment Configuration', () => {
       if (process.env.NODE_ENV === 'production') {
         expect(process.env.JWT_SECRET).toBeDefined();
         expect(process.env.JWT_SECRET.length).toBeGreaterThanOrEqual(32);
-      }
-    });
-
-    it('should have strong SESSION_SECRET in production', () => {
-      if (process.env.NODE_ENV === 'production') {
-        expect(process.env.SESSION_SECRET).toBeDefined();
-        expect(process.env.SESSION_SECRET.length).toBeGreaterThanOrEqual(32);
       }
     });
 

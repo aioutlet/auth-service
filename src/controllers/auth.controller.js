@@ -11,8 +11,9 @@ import { asyncHandler } from '../middlewares/asyncHandler.js';
 import { getUserByEmail, getUserById, createUser } from '../services/userServiceClient.js';
 import { sendMail } from '../utils/email.js';
 import authValidator from '../validators/auth.validator.js';
-import logger from '../utils/logger.js';
+import logger from '../observability/logging/index.js';
 import ErrorResponse from '../utils/ErrorResponse.js';
+import messageBrokerService from '../services/messageBrokerServiceClient.js';
 
 /**
  * @desc    Log in a user with email and password
@@ -48,8 +49,24 @@ export const login = asyncHandler(async (req, res, next) => {
 
   // Issue tokens using consistent helpers
   const token = issueJwtToken(req, res, user);
-  await issueRefreshToken(req, res, user);
+  const refreshTokenDoc = await issueRefreshToken(req, res, user);
   await issueCsrfTokenConsistent(req, res, user);
+
+  // Publish login event via Message Broker Service
+  try {
+    await messageBrokerService.publishEvent('auth.login', {
+      userId: user._id.toString(),
+      email: user.email,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      sessionId: refreshTokenDoc._id.toString(),
+      correlationId: req.correlationId,
+      timestamp: new Date().toISOString(),
+      success: true,
+    });
+  } catch (error) {
+    logger.error('Failed to publish login event', req, { operation: 'publish_login_event', error });
+  }
 
   res.json({ jwt: token, user });
 });

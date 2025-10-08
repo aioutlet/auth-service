@@ -31,20 +31,28 @@ class Logger {
       filePath: process.env.LOG_FILE_PATH || config.filePath || this._getDefaultLogPath(environment, serviceName),
     };
 
+    // Force disable console and file logging in test environment
+    if (environment === 'test') {
+      this.config.enableConsole = false;
+      this.config.enableFile = false;
+    }
+
     // Initialize Winston logger
     this._initializeWinston();
 
-    // Log initialization
-    this.info('Logger initialized', null, {
-      operation: 'logger_initialization',
-      metadata: {
-        config: {
-          ...this.config,
-          // Don't log sensitive paths in production
-          filePath: this.config.environment === 'production' ? '[REDACTED]' : this.config.filePath,
+    // Log initialization (skip for test environment)
+    if (environment !== 'test') {
+      this.info('Logger initialized', null, {
+        operation: 'logger_initialization',
+        metadata: {
+          config: {
+            ...this.config,
+            // Don't log sensitive paths in production
+            filePath: this.config.environment === 'production' ? '[REDACTED]' : this.config.filePath,
+          },
         },
-      },
-    });
+      });
+    }
   }
 
   /**
@@ -88,7 +96,7 @@ class Logger {
         new winston.transports.Console({
           format: this.config.format === 'json' ? createJsonFormat(this.config) : createConsoleFormat(this.config),
           level: this.config.logLevel.toLowerCase(),
-        }),
+        })
       );
     }
 
@@ -99,7 +107,7 @@ class Logger {
           filename: this.config.filePath,
           format: createJsonFormat(this.config),
           level: this.config.logLevel.toLowerCase(),
-        }),
+        })
       );
     }
 
@@ -111,12 +119,12 @@ class Logger {
       exceptionHandlers.push(
         new winston.transports.File({
           filename: this.config.filePath.replace('.log', '-exceptions.log'),
-        }),
+        })
       );
       rejectionHandlers.push(
         new winston.transports.File({
           filename: this.config.filePath.replace('.log', '-rejections.log'),
-        }),
+        })
       );
     }
 
@@ -124,12 +132,12 @@ class Logger {
       exceptionHandlers.push(
         new winston.transports.Console({
           format: createConsoleFormat(this.config),
-        }),
+        })
       );
       rejectionHandlers.push(
         new winston.transports.Console({
           format: createConsoleFormat(this.config),
-        }),
+        })
       );
     }
 
