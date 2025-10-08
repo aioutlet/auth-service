@@ -32,7 +32,7 @@
   "dependencies": {
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/auto-instrumentations-node": "^0.62.2",
-    "@opentelemetry/exporter-trace-otlp-http": "^0.203.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.206.0",
     "@opentelemetry/sdk-node": "^0.203.0",
     "amqplib": "^0.10.8",
     "axios": "^1.12.2",
