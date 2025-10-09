@@ -3,30 +3,17 @@ import logger from '../observability/logging/index.js';
 
 const connectDB = async () => {
   try {
-    const {
-      MONGODB_CONNECTION_SCHEME = '',
-      MONGODB_HOST = '',
-      MONGODB_PORT = '',
-      MONGODB_USERNAME = '',
-      MONGODB_PASSWORD = '',
-      MONGODB_DB_NAME = '',
-      MONGODB_DB_PARAMS = '',
-    } = process.env;
+    const mongodb_uri = process.env.MONGODB_URI;
 
-    if (!MONGODB_HOST || !MONGODB_DB_NAME) {
-      throw new Error('MONGODB_HOST and MONGODB_DB_NAME must be defined');
+    if (!mongodb_uri) {
+      throw new Error('MONGODB_URI must be defined in environment variables');
     }
 
-    let mongodb_uri = `${MONGODB_CONNECTION_SCHEME}://`;
-
-    if (MONGODB_USERNAME) {
-      mongodb_uri += `${MONGODB_USERNAME}:${MONGODB_PASSWORD}@`;
-    }
-
-    mongodb_uri += `${MONGODB_HOST}:${MONGODB_PORT}/${MONGODB_DB_NAME}`;
-
-    if (MONGODB_DB_PARAMS) {
-      mongodb_uri += `?${MONGODB_DB_PARAMS}`;
+    // Validate URI format
+    try {
+      new URL(mongodb_uri);
+    } catch (urlError) {
+      throw new Error(`Invalid MONGODB_URI format: ${urlError.message}`);
     }
 
     global.mongoUrl = mongodb_uri;

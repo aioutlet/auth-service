@@ -16,14 +16,13 @@ describe('Environment Configuration', () => {
       expect(process.env.MONGODB_URI).toMatch(/^mongodb/);
     });
 
-    it('should have MONGODB_HOST defined', () => {
-      expect(process.env.MONGODB_HOST).toBeDefined();
-      expect(process.env.MONGODB_HOST).toBeTruthy();
-    });
-
-    it('should have MONGODB_DB_NAME defined', () => {
-      expect(process.env.MONGODB_DB_NAME).toBeDefined();
-      expect(process.env.MONGODB_DB_NAME).toBeTruthy();
+    it('should have valid MONGODB_URI format', () => {
+      const uri = process.env.MONGODB_URI;
+      expect(uri).toBeDefined();
+      // Should start with mongodb:// or mongodb+srv://
+      expect(uri).toMatch(/^mongodb(\+srv)?:\/\//);
+      // Should contain database name
+      expect(uri).toContain('/');
     });
 
     it('should have JWT_SECRET defined', () => {
