@@ -9,7 +9,6 @@ import {
 import RefreshToken from '../models/refreshToken.model.js';
 import { asyncHandler } from '../middlewares/asyncHandler.js';
 import { getUserByEmail, getUserById, createUser } from '../services/userServiceClient.js';
-import { sendMail } from '../utils/email.js';
 import authValidator from '../validators/auth.validator.js';
 import logger from '../observability/logging/index.js';
 import ErrorResponse from '../utils/ErrorResponse.js';
@@ -153,12 +152,25 @@ export const forgotPassword = asyncHandler(async (req, res, next) => {
   }
   const resetToken = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '1h' });
   const resetUrl = `${process.env.BASE_URL || 'http://localhost:4000'}/auth/password/reset?token=${resetToken}`;
-  await sendMail({
-    to: email,
-    subject: 'Reset your password',
-    text: `Reset your password: ${resetUrl}`,
-    html: `<p>Reset your password: <a href="${resetUrl}">${resetUrl}</a></p>`,
-  });
+
+  // Publish event for notification-service to send email
+  try {
+    await messageBrokerService.publishEvent('auth.password.reset.requested', {
+      userId: user._id.toString(),
+      email: user.email,
+      resetToken,
+      resetUrl,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // 1 hour
+      requestIp: req.ip,
+      correlationId: req.correlationId,
+      timestamp: new Date().toISOString(),
+    });
+    logger.info('Password reset event published', { email, correlationId: req.correlationId });
+  } catch (error) {
+    logger.error('Failed to publish password reset event', { email, error: error.message });
+    // Don't fail the request if event publishing fails
+  }
+
   res.json({ message: 'Password reset email sent' });
 });
 
@@ -192,6 +204,23 @@ export const resetPassword = asyncHandler(async (req, res, next) => {
     const errorBody = await resp.json().catch(() => ({}));
     return next(new ErrorResponse(errorBody.error || 'Failed to reset password', resp.status));
   }
+
+  // Publish event for notification-service to send confirmation email
+  try {
+    await messageBrokerService.publishEvent('auth.password.reset.completed', {
+      userId: user._id.toString(),
+      email: user.email,
+      changedAt: new Date().toISOString(),
+      changedIp: req.ip,
+      correlationId: req.correlationId,
+      timestamp: new Date().toISOString(),
+    });
+    logger.info('Password reset completed event published', { email: user.email });
+  } catch (error) {
+    logger.error('Failed to publish password reset completed event', { error: error.message });
+    // Don't fail the request if event publishing fails
+  }
+
   res.json({ message: 'Password reset successful' });
 });
 
@@ -340,13 +369,22 @@ export const resendVerificationEmail = asyncHandler(async (req, res, next) => {
   const verifyToken = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '1d' });
   const verifyUrl = `${process.env.BASE_URL || 'http://localhost:4000'}/api/auth/email/verify?token=${verifyToken}`;
 
-  // Send verification email
-  await sendMail({
-    to: email,
-    subject: 'Verify your email',
-    text: `Please verify your email: ${verifyUrl}`,
-    html: `<p>Please verify your email: <a href="${verifyUrl}">${verifyUrl}</a></p>`,
-  });
+  // Publish event for notification-service to send verification email
+  try {
+    await messageBrokerService.publishEvent('auth.email.verification.requested', {
+      userId: user._id.toString(),
+      email: user.email,
+      verificationToken: verifyToken,
+      verificationUrl: verifyUrl,
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 1 day
+      correlationId: req.correlationId,
+      timestamp: new Date().toISOString(),
+    });
+    logger.info('Email verification event published', { email, correlationId: req.correlationId });
+  } catch (error) {
+    logger.error('Failed to publish email verification event', { email, error: error.message });
+    // Don't fail the request if event publishing fails
+  }
 
   logger.info('Verification email resent', { email });
   res.json({ message: 'Verification email sent successfully' });
@@ -424,20 +462,36 @@ export const register = asyncHandler(async (req, res, next) => {
     const verifyToken = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '1d' });
     const verifyUrl = `${process.env.BASE_URL || 'http://localhost:4000'}/api/auth/email/verify?token=${verifyToken}`;
 
-    // Try to send verification email, but don't fail registration if email fails
+    // Publish events for notification-service
     try {
-      await sendMail({
-        to: email,
-        subject: 'Verify your email',
-        text: `Please verify your email: ${verifyUrl}`,
-        html: `<p>Please verify your email: <a href="${verifyUrl}">${verifyUrl}</a></p>`,
+      // User registered event
+      await messageBrokerService.publishEvent('auth.user.registered', {
+        userId: user._id.toString(),
+        email: user.email,
+        name: `${firstName} ${lastName}`,
+        firstName,
+        lastName,
+        registeredAt: new Date().toISOString(),
+        correlationId: req.correlationId,
+        timestamp: new Date().toISOString(),
       });
-      logger.info('Verification email sent successfully', { email });
-    } catch (emailError) {
-      logger.warn('Failed to send verification email, but registration succeeded', {
+
+      // Email verification event
+      await messageBrokerService.publishEvent('auth.email.verification.requested', {
+        userId: user._id.toString(),
+        email: user.email,
+        verificationToken: verifyToken,
+        verificationUrl: verifyUrl,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 1 day
+        correlationId: req.correlationId,
+        timestamp: new Date().toISOString(),
+      });
+
+      logger.info('User registration and verification events published', { email });
+    } catch (eventError) {
+      logger.warn('Failed to publish user registration events, but registration succeeded', {
         email,
-        error: emailError.message,
-        verifyUrl, // Log the URL so admin can manually send it if needed
+        error: eventError.message,
       });
     }
 
@@ -514,12 +568,24 @@ export const requestAccountReactivation = asyncHandler(async (req, res, next) =>
   // Generate a short-lived reactivation token
   const reactivateToken = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '1h' });
   const reactivateUrl = `${process.env.BASE_URL || 'http://localhost:4000'}/auth/reactivate?token=${reactivateToken}`;
-  await sendMail({
-    to: email,
-    subject: 'Reactivate your account',
-    text: `Reactivate your account: ${reactivateUrl}`,
-    html: `<p>Reactivate your account: <a href="${reactivateUrl}">${reactivateUrl}</a></p>`,
-  });
+
+  // Publish event for notification-service to send reactivation email
+  try {
+    await messageBrokerService.publishEvent('auth.account.reactivation.requested', {
+      userId: user._id.toString(),
+      email: user.email,
+      reactivationToken: reactivateToken,
+      reactivationUrl: reactivateUrl,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // 1 hour
+      correlationId: req.correlationId,
+      timestamp: new Date().toISOString(),
+    });
+    logger.info('Account reactivation event published', { email });
+  } catch (error) {
+    logger.error('Failed to publish account reactivation event', { error: error.message });
+    // Don't fail the request if event publishing fails
+  }
+
   res.json({ message: 'Reactivation email sent.' });
 });
 
