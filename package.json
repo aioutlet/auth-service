@@ -48,7 +48,7 @@
     "mongoose": "^8.17.1",
     "morgan": "^1.10.1",
     "uuid": "^11.1.0",
-    "winston": "^3.17.0"
+    "winston": "^3.18.3"
   },
   "devDependencies": {
     "@babel/preset-env": "^7.28.3",
