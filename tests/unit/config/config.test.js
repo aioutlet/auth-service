@@ -75,12 +75,6 @@ describe('Environment Configuration', () => {
       expect(url).toBeTruthy();
       expect(url).toMatch(/^https?:\/\//);
     });
-
-    it('should have AUDIT_SERVICE_URL defined or use default', () => {
-      const url = process.env.AUDIT_SERVICE_URL || 'http://localhost:9000/api/audit';
-      expect(url).toBeTruthy();
-      expect(url).toMatch(/^https?:\/\//);
-    });
   });
 
   describe('Message Broker Configuration', () => {

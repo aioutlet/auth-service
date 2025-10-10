@@ -64,8 +64,6 @@ export const readiness = asyncHandler(async (req, res) => {
   // 2. Check external service dependencies
   checks.externalServices = {
     userService: checkServiceUrl(process.env.USER_SERVICE_URL, 'User Service'),
-    adminService: checkServiceUrl(process.env.ADMIN_SERVICE_URL, 'Admin Service'),
-    auditService: checkServiceUrl(process.env.AUDIT_SERVICE_URL, 'Audit Service'),
     messageBroker: checkServiceUrl(process.env.MESSAGE_BROKER_SERVICE_URL, 'Message Broker'),
   };
 

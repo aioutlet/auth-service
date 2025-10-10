@@ -1,13 +1,13 @@
-import ErrorResponse from '../../src/utils/ErrorResponse.js';
+import ErrorResponse from '../../../src/utils/ErrorResponse.js';
 
 describe('ErrorResponse', () => {
   describe('constructor', () => {
     it('should create an error with message and status code', () => {
       const message = 'Test error message';
       const statusCode = 400;
-      
+
       const error = new ErrorResponse(message, statusCode);
-      
+
       expect(error).toBeInstanceOf(Error);
       expect(error.message).toBe(message);
       expect(error.statusCode).toBe(statusCode);
@@ -15,7 +15,7 @@ describe('ErrorResponse', () => {
 
     it('should inherit from Error class', () => {
       const error = new ErrorResponse('Test', 500);
-      
+
       expect(error instanceof Error).toBe(true);
       expect(error instanceof ErrorResponse).toBe(true);
     });
@@ -25,7 +25,7 @@ describe('ErrorResponse', () => {
       const error401 = new ErrorResponse('Unauthorized', 401);
       const error404 = new ErrorResponse('Not Found', 404);
       const error500 = new ErrorResponse('Internal Server Error', 500);
-      
+
       expect(error400.statusCode).toBe(400);
       expect(error401.statusCode).toBe(401);
       expect(error404.statusCode).toBe(404);
@@ -34,7 +34,7 @@ describe('ErrorResponse', () => {
 
     it('should handle empty message', () => {
       const error = new ErrorResponse('', 400);
-      
+
       expect(error.message).toBe('');
       expect(error.statusCode).toBe(400);
     });
@@ -42,7 +42,7 @@ describe('ErrorResponse', () => {
     it('should handle special characters in message', () => {
       const message = 'Error with special chars: @#$%^&*()';
       const error = new ErrorResponse(message, 400);
-      
+
       expect(error.message).toBe(message);
     });
   });

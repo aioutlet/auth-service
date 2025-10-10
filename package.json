@@ -26,6 +26,10 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "test": "jest",
+    "test:unit": "jest tests/unit",
+    "test:integration": "jest tests/integration --runInBand",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
   },
@@ -56,8 +60,10 @@
     "babel-jest": "^30.0.2",
     "eslint": "^9.12.0",
     "jest": "^30.0.0",
+    "mongodb-memory-server": "^10.1.2",
     "node-mocks-http": "^1.17.2",
     "nodemon": "^3.1.10",
-    "supertest": "^7.1.4"
+    "supertest": "^7.1.4",
+    "testcontainers": "^10.16.0"
   }
 }
