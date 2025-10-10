@@ -531,7 +531,19 @@ export const register = asyncHandler(async (req, res, next) => {
     }
 
     if (error.statusCode === 400 || (error.message && error.message.includes('validation'))) {
-      const errorMsg = error.details?.error || error.message || 'Registration data validation failed';
+      // Extract error message, handling cases where error.details.error is an object
+      let errorMsg = 'Registration data validation failed';
+      if (error.details?.error) {
+        if (typeof error.details.error === 'string') {
+          errorMsg = error.details.error;
+        } else if (error.details.error.message) {
+          errorMsg = error.details.error.message;
+        } else {
+          errorMsg = JSON.stringify(error.details.error);
+        }
+      } else if (error.message) {
+        errorMsg = error.message;
+      }
       return next(new ErrorResponse(errorMsg, 400));
     }
 

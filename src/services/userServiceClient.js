@@ -35,8 +35,19 @@ export async function createUser(userData) {
         userData: { ...userData, password: '[REDACTED]' },
       });
 
+      // Extract error message from nested error object structure
+      let errorMessage = 'Failed to create user';
+      if (typeof errorDetails.error === 'string') {
+        errorMessage = errorDetails.error;
+      } else if (errorDetails.error && typeof errorDetails.error === 'object') {
+        // User-service returns {error: {code, message, details, traceId}}
+        errorMessage = errorDetails.error.message || errorDetails.error.code || JSON.stringify(errorDetails.error);
+      } else if (typeof errorDetails.message === 'string') {
+        errorMessage = errorDetails.message;
+      }
+
       // Throw error with details so controller can handle it
-      const error = new Error(errorDetails.error || errorDetails.message || 'Failed to create user');
+      const error = new Error(errorMessage);
       error.statusCode = res.status;
       error.details = errorDetails;
       throw error;

@@ -54,9 +54,21 @@ const errorHandler = (err, req, res, _next) => {
   }
 
   // Prepare response based on environment
+  // Handle error message which could be string, object, or undefined
+  let errorMessage = 'Internal Server Error';
+  if (typeof error.message === 'string') {
+    errorMessage = error.message;
+  } else if (error.message && typeof error.message === 'object') {
+    // If message is an object, try to extract useful info
+    errorMessage = error.message.message || error.message.error || JSON.stringify(error.message);
+  } else if (error.details?.error) {
+    // Check for nested error in details
+    errorMessage = typeof error.details.error === 'string' ? error.details.error : JSON.stringify(error.details.error);
+  }
+
   const response = {
     success: false,
-    error: error.message || 'Internal Server Error',
+    error: errorMessage,
   };
 
   // Add validation errors if present
@@ -71,6 +83,7 @@ const errorHandler = (err, req, res, _next) => {
       name: error.name,
       statusCode: error.statusCode,
       ...(err.code && { code: err.code }),
+      ...(err.details && { originalDetails: err.details }),
     };
     // In development, log detailed error info
     logger.error('API Error', req, {

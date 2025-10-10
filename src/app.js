@@ -9,13 +9,11 @@ import cookieParser from 'cookie-parser';
 import logger from './observability/logging/index.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 import { correlationIdMiddleware } from './middlewares/correlationId.middleware.js';
-import { createRateLimiter } from './middlewares/rateLimit.middleware.js';
 
 const app = express();
 
 // Middleware
 app.use(correlationIdMiddleware); // Add correlation ID middleware first
-app.use(createRateLimiter()); // Apply general rate limiting to all endpoints
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cors());
