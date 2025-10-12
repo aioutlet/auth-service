@@ -1,6 +1,5 @@
 import { trace } from '@opentelemetry/api';
-import { isTracingEnabled } from './setup.js';
-import logger from '../logging/index.js';
+import { enableTracing } from './setup.js';
 
 /**
  * Tracing helper functions
@@ -22,7 +21,7 @@ export function getServiceInfo() {
  * @returns {Object} Object containing traceId and spanId
  */
 export function getTracingContext() {
-  if (!isTracingEnabled()) {
+  if (!enableTracing) {
     return { traceId: null, spanId: null };
   }
 
@@ -39,10 +38,7 @@ export function getTracingContext() {
     };
   } catch (error) {
     // If OpenTelemetry is not properly initialized, return nulls
-    logger.debug('Failed to get tracing context', null, {
-      operation: 'get_tracing_context',
-      error: error.message,
-    });
+    console.warn('[TRACING] Failed to get tracing context:', error.message);
     return { traceId: null, spanId: null };
   }
 }
@@ -54,7 +50,7 @@ export function getTracingContext() {
  * @returns {Object} Span object with context
  */
 export function createOperationSpan(operationName, attributes = {}) {
-  if (!isTracingEnabled()) {
+  if (!enableTracing) {
     return {
       span: null,
       traceId: null,
@@ -87,10 +83,7 @@ export function createOperationSpan(operationName, attributes = {}) {
     };
   } catch (error) {
     // Return a no-op span if tracing fails
-    logger.debug('Failed to create operation span', null, {
-      operation: 'create_operation_span',
-      error: error.message,
-    });
+    console.warn('[TRACING] Failed to create operation span:', error.message);
     return {
       span: null,
       traceId: null,

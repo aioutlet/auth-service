@@ -1,64 +1,53 @@
-// OpenTelemetry tracing setup for user-service
+/**
+ * OpenTelemetry tracing setup for auth-service
+ * Auto-initializes on import (standard pattern)
+ * Uses console.log for initialization messages (industry standard)
+ */
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
-import process from 'process';
-import logger from '../logging/index.js';
 
 // SDK initialization
 let sdk = null;
 const environment = process.env.NODE_ENV || 'development';
 const enableTracing = process.env.ENABLE_TRACING !== 'false' && environment !== 'test';
 
-/**
- * Initialize OpenTelemetry SDK
- * @returns {boolean} - True if initialization was successful
- */
-export function initializeTracing() {
-  if (!enableTracing) {
-    return false;
-  }
-
-  if (sdk) {
-    return true; // Already initialized
-  }
+// Auto-initialize on import (standard Express + OpenTelemetry pattern)
+if (enableTracing) {
+  console.log('[TRACING] Initializing OpenTelemetry tracing...');
 
   try {
     sdk = new NodeSDK({
       traceExporter: new OTLPTraceExporter({
         url: process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://localhost:4318/v1/traces',
+        headers: {},
       }),
-      serviceName: process.env.OTEL_SERVICE_NAME || 'auth-service',
-      instrumentations: [getNodeAutoInstrumentations()],
+      serviceName: process.env.SERVICE_NAME || 'auth-service',
+      serviceVersion: process.env.SERVICE_VERSION || '1.0.0',
+      instrumentations: [
+        getNodeAutoInstrumentations({
+          '@opentelemetry/instrumentation-fs': {
+            enabled: false,
+          },
+        }),
+      ],
     });
 
     sdk.start();
-    logger.info('OpenTelemetry tracing initialized', null, { operation: 'tracing_init' });
-    return true;
+    console.log('[TRACING] ✅ OpenTelemetry tracing initialized successfully');
+
+    // Graceful shutdown
+    process.on('SIGTERM', () => {
+      sdk
+        .shutdown()
+        .then(() => console.log('[TRACING] Tracing terminated'))
+        .catch((error) => console.error('[TRACING] Error terminating tracing:', error.message))
+        .finally(() => process.exit(0));
+    });
   } catch (error) {
-    logger.warn('Failed to initialize OpenTelemetry', null, { operation: 'tracing_init', error: error.message });
-    return false;
+    console.warn('[TRACING] ⚠️  Failed to initialize OpenTelemetry:', error.message);
   }
 }
 
-/**
- * Shutdown OpenTelemetry SDK
- * @returns {Promise<void>}
- */
-export function shutdownTracing() {
-  if (sdk) {
-    return sdk
-      .shutdown()
-      .then(() => logger.info('Tracing terminated', null, { operation: 'tracing_shutdown' }))
-      .catch((error) => logger.error('Error terminating tracing', null, { operation: 'tracing_shutdown', error }));
-  }
-  return Promise.resolve();
-}
-
-/**
- * Check if tracing is enabled
- * @returns {boolean} - True if tracing is enabled
- */
-export function isTracingEnabled() {
-  return enableTracing;
-}
+// Export for reference
+export { enableTracing };
