@@ -409,6 +409,12 @@ export const me = asyncHandler((req, res) => {
 export const register = asyncHandler(async (req, res, next) => {
   const { email, password, firstName, lastName, phoneNumber } = req.body;
 
+  // Track operation start
+  const operationStart = logger.operationStart('user_registration', req, {
+    email,
+    hasPhoneNumber: !!phoneNumber,
+  });
+
   // Basic validation
   if (!email || !password) {
     return next(new ErrorResponse('Email and password are required', 400));
@@ -487,15 +493,27 @@ export const register = asyncHandler(async (req, res, next) => {
         timestamp: new Date().toISOString(),
       });
 
-      logger.info('User registration and verification events published', { email });
-    } catch (eventError) {
-      logger.warn('Failed to publish user registration events, but registration succeeded', {
+      logger.info('User registration and verification events published', req, {
+        operation: 'publish_registration_events',
         email,
-        error: eventError.message,
+        userId: user._id,
+      });
+    } catch (eventError) {
+      logger.warn('Failed to publish user registration events, but registration succeeded', req, {
+        operation: 'publish_registration_events',
+        email,
+        userId: user._id,
+        error: eventError,
       });
     }
 
-    logger.info('User registered successfully', {
+    // Log as business event with duration
+    logger.operationComplete('user_registration', operationStart, req, {
+      userId: user._id,
+      email,
+    });
+
+    logger.business('USER_REGISTERED', req, {
       userId: user._id,
       email,
       firstName,
@@ -517,12 +535,16 @@ export const register = asyncHandler(async (req, res, next) => {
       },
     });
   } catch (error) {
-    logger.error('Registration failed', {
+    logger.operationFailed('user_registration', operationStart, error, req, {
       email,
-      error: error.message,
       statusCode: error.statusCode,
       details: error.details,
-      stack: error.stack,
+    });
+
+    logger.security('REGISTRATION_FAILED', req, {
+      email,
+      reason: error.message,
+      statusCode: error.statusCode,
     });
 
     // Handle specific error types

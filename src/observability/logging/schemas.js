@@ -81,8 +81,8 @@ export const ENVIRONMENT_CONFIGS = {
     ...DEFAULT_CONFIG,
     logLevel: 'DEBUG',
     format: 'console',
-    enableFile: false,
-    enableTracing: false,
+    enableFile: true,
+    enableTracing: true,
   },
   staging: {
     ...DEFAULT_CONFIG,
