@@ -3,8 +3,22 @@ import logger from '../observability/logging/index.js';
 
 const connectDB = async () => {
   try {
-    // MONGODB_URI is already validated by config.validator.js at startup
-    const mongodb_uri = process.env.MONGODB_URI;
+    // Construct MongoDB URI from environment variables
+    const mongoHost = process.env.MONGODB_HOST || 'localhost';
+    const mongoPort = process.env.MONGODB_PORT || '27017';
+    const mongoUsername = process.env.MONGO_INITDB_ROOT_USERNAME;
+    const mongoPassword = process.env.MONGO_INITDB_ROOT_PASSWORD;
+    const mongoDatabase = process.env.MONGO_INITDB_DATABASE;
+    const mongoAuthSource = process.env.MONGODB_AUTH_SOURCE || 'admin';
+
+    let mongodb_uri;
+    if (mongoUsername && mongoPassword) {
+      mongodb_uri = `mongodb://${mongoUsername}:${mongoPassword}@${mongoHost}:${mongoPort}/${mongoDatabase}?authSource=${mongoAuthSource}`;
+    } else {
+      mongodb_uri = `mongodb://${mongoHost}:${mongoPort}/${mongoDatabase}`;
+    }
+
+    logger.info(`Connecting to MongoDB: ${mongoHost}:${mongoPort}/${mongoDatabase}`);
 
     // Set global promise library
     mongoose.Promise = global.Promise;
