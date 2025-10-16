@@ -1,7 +1,6 @@
 import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
-import connectDB from './config/db.js';
 import authRoutes from './routes/auth.routes.js';
 import homeRoutes from './routes/home.routes.js';
 import operationalRoutes from './routes/operational.routes.js';
@@ -19,9 +18,6 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cors());
 app.use(morgan('dev'));
 app.use(cookieParser());
-
-// Connect to MongoDB
-await connectDB();
 
 // Routes
 app.use('/api/home', homeRoutes);

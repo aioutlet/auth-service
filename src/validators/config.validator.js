@@ -22,19 +22,6 @@ const isValidUrl = (url) => {
 };
 
 /**
- * Validates MongoDB URI format
- * @param {string} uri - The MongoDB URI to validate
- * @returns {boolean} - True if valid, false otherwise
- */
-const isValidMongoUri = (uri) => {
-  if (!uri) {
-    return false;
-  }
-  // MongoDB URI should start with mongodb:// or mongodb+srv://
-  return /^mongodb(\+srv)?:\/\/.+/.test(uri);
-};
-
-/**
  * Validates a port number
  * @param {string|number} port - The port to validate
  * @returns {boolean} - True if valid, false otherwise
@@ -73,13 +60,6 @@ const validationRules = {
     required: true,
     validator: (value) => value && value.length > 0,
     errorMessage: 'SERVICE_NAME must be a non-empty string',
-  },
-
-  // Database Configuration
-  MONGODB_URI: {
-    required: true,
-    validator: isValidMongoUri,
-    errorMessage: 'MONGODB_URI must be a valid MongoDB connection string (mongodb:// or mongodb+srv://)',
   },
 
   // Security Configuration
