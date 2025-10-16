@@ -4,11 +4,22 @@ const USER_SERVICE_URL = process.env.USER_SERVICE_URL; // e.g. http://localhost:
 
 export async function getUserByEmail(email) {
   const url = `${USER_SERVICE_URL}/findByEmail?email=${encodeURIComponent(email)}`;
-  const res = await fetch(url);
-  if (!res.ok) {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) {
+      // If 404, user not found - return null
+      if (res.status === 404) {
+        return null;
+      }
+      // For other errors, log and return null
+      logger.warn('getUserByEmail failed', { status: res.status, email: `${email.substring(0, 3)}***` });
+      return null;
+    }
+    return await res.json();
+  } catch (error) {
+    logger.error('getUserByEmail network error', { error: error.message, email: `${email.substring(0, 3)}***` });
     return null;
   }
-  return await res.json();
 }
 
 export async function createUser(userData) {

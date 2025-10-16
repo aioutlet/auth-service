@@ -5,8 +5,8 @@ import {
   issueJwtToken,
   issueRefreshToken,
   issueCsrfToken as issueCsrfTokenConsistent,
+  verifyToken,
 } from '../utils/tokenManager.js';
-import RefreshToken from '../models/refreshToken.model.js';
 import { asyncHandler } from '../middlewares/asyncHandler.js';
 import { getUserByEmail, getUserById, createUser } from '../services/userServiceClient.js';
 import authValidator from '../validators/auth.validator.js';
@@ -84,7 +84,8 @@ export const logout = asyncHandler(async (req, res, next) => {
     logger.warn('Logout attempt missing refresh token');
     return next(new ErrorResponse('Refresh token required', 400));
   }
-  await RefreshToken.deleteOne({ token: refreshToken });
+
+  // For stateless tokens, we just clear the cookies (no database operation needed)
   // Clear the cookies
   res.clearCookie('refreshToken', {
     httpOnly: true,
@@ -101,7 +102,7 @@ export const logout = asyncHandler(async (req, res, next) => {
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
   });
-  logger.info('User logged out', { refreshToken });
+  logger.info('User logged out successfully');
   res.json({ message: 'Logged out successfully' });
 });
 
@@ -117,16 +118,19 @@ export const refreshToken = asyncHandler(async (req, res, next) => {
     logger.warn('Refresh token missing');
     return next(new ErrorResponse('Refresh token required', 400));
   }
-  const stored = await RefreshToken.findOne({ token: refreshToken });
-  if (!stored || stored.expiresAt < new Date()) {
-    logger.warn('Invalid or expired refresh token', { refreshToken });
+
+  // Verify the refresh token (stateless)
+  const decoded = verifyToken(refreshToken);
+  if (!decoded || decoded.type !== 'refresh') {
+    logger.warn('Invalid or expired refresh token');
     return next(new ErrorResponse('Invalid or expired refresh token', 401));
   }
-  const userId = stored.user;
+
+  const userId = decoded.id;
   const jwtToken = req.cookies?.jwt || null;
   const user = await getUserById(userId, jwtToken);
   if (!user) {
-    logger.warn('Refresh token user not found', { refreshToken });
+    logger.warn('Refresh token user not found', { userId });
     return next(new ErrorResponse('User not found', 401));
   }
   logger.info('Refresh token used', { userId: user._id });

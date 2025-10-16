@@ -1,23 +1,34 @@
+import jwt from 'jsonwebtoken';
 import ErrorResponse from '../utils/ErrorResponse.js';
-import CsrfToken from '../models/csrfToken.model.js';
-import mongoose from 'mongoose';
 
 async function requireCsrfToken(req, res, next) {
   try {
     // Only check for browser clients (cookie-based JWT)
     const cookieToken = req.cookies['csrfToken'];
     const headerToken = req.get('X-CSRF-Token');
+
     if (!cookieToken || !headerToken || cookieToken !== headerToken) {
       return next(new ErrorResponse('Invalid or missing CSRF token', 403));
     }
-    // Validate token in DB (optional, for advanced security)
-    const userId = req.user?._id || req.user?.id;
-    if (userId && mongoose.Types.ObjectId.isValid(userId)) {
-      const csrfDoc = await CsrfToken.findOne({ token: cookieToken, user: userId });
-      if (!csrfDoc || csrfDoc.expiresAt < new Date()) {
-        return next(new ErrorResponse('Expired or invalid CSRF token', 403));
+
+    // Validate CSRF token as JWT (stateless approach)
+    try {
+      const decoded = jwt.verify(cookieToken, process.env.JWT_SECRET);
+
+      // Check if token is for the same user and hasn't expired
+      const userId = req.user?.id;
+      if (!userId || decoded.userId !== userId) {
+        return next(new ErrorResponse('CSRF token user mismatch', 403));
       }
+
+      // Check token expiration (CSRF tokens should be short-lived)
+      if (decoded.exp && decoded.exp < Math.floor(Date.now() / 1000)) {
+        return next(new ErrorResponse('Expired CSRF token', 403));
+      }
+    } catch {
+      return next(new ErrorResponse('Invalid CSRF token format', 403));
     }
+
     next();
   } catch (err) {
     next(err);

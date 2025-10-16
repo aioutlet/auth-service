@@ -1,8 +1,5 @@
 import jwt from 'jsonwebtoken';
-import RefreshToken from '../models/refreshToken.model.js';
 import crypto from 'crypto';
-import CsrfToken from '../models/csrfToken.model.js';
-import mongoose from 'mongoose';
 import logger from '../observability/logging/index.js';
 
 // --- Stateless JWT helpers ---
@@ -44,49 +41,46 @@ export function issueJwtToken(req, res, user) {
 }
 
 /**
- * Issues a refresh token, stores it in DB, and sets it as an HTTP-only cookie.
- * Returns the refresh token document.
+ * Issues a stateless refresh token (JWT-based) and sets it as an HTTP-only cookie.
+ * Returns a mock refresh token document for compatibility.
  */
 export async function issueRefreshToken(req, res, user) {
-  const refreshToken = signToken({ id: user._id }, '7d');
-  const refreshTokenDoc = await RefreshToken.create({
-    user: user._id,
-    token: refreshToken,
-    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-  });
+  const refreshToken = signToken({ id: user._id, type: 'refresh' }, '7d');
   res.cookie('refreshToken', refreshToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   });
-  return refreshTokenDoc;
+
+  // Return a mock document for compatibility
+  return {
+    _id: crypto.randomUUID(),
+    user: user._id,
+    token: refreshToken,
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+  };
 }
 
 /**
- * Issues a CSRF token, stores it in DB, and sets it as a cookie and response header.
+ * Issues a stateless CSRF token (JWT-based) and sets it as a cookie and response header.
  * Returns the token string.
  */
 export async function issueCsrfToken(req, res, user) {
-  // if (!req.cookies['csrfToken']) {
-  const csrfToken = crypto.randomBytes(24).toString('hex');
-  const userId = user?._id || user?.id;
-  if (userId && mongoose.Types.ObjectId.isValid(userId)) {
-    await CsrfToken.create({
-      token: csrfToken,
-      user: userId,
-      expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour
-    });
-  }
+  const csrfToken = signToken(
+    {
+      userId: user._id,
+      type: 'csrf',
+    },
+    '1h' // CSRF tokens should be short-lived
+  );
   res.cookie('csrfToken', csrfToken, {
     httpOnly: false, // Must be readable by JS to send in header
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
-    maxAge: 60 * 60 * 1000,
+    maxAge: 60 * 60 * 1000, // 1 hour
   });
   res.set('X-CSRF-Token', csrfToken);
   req.csrfToken = csrfToken;
   return csrfToken;
-  // }
-  // return req.cookies['csrfToken'];
 }
