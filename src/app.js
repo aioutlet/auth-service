@@ -8,6 +8,7 @@ import cookieParser from 'cookie-parser';
 import logger from './observability/logging/index.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 import { correlationIdMiddleware } from './middlewares/correlationId.middleware.js';
+import { getConfig, getConfigArray } from './validators/config.validator.js';
 
 const app = express();
 
@@ -15,7 +16,16 @@ const app = express();
 app.use(correlationIdMiddleware); // Add correlation ID middleware first
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cors());
+
+// CORS configuration
+const corsOrigins = getConfigArray('CORS_ORIGINS');
+app.use(
+  cors({
+    origin: corsOrigins.includes('*') ? true : corsOrigins,
+    credentials: true,
+  })
+);
+
 app.use(morgan('dev'));
 app.use(cookieParser());
 
@@ -27,5 +37,33 @@ app.use('/', operationalRoutes);
 // Error handler
 app.use(errorHandler);
 
-const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => logger.info(`Auth service running on port ${PORT}`));
+const PORT = getConfig('PORT') || 3001;
+const HOST = process.env.HOST || '0.0.0.0';
+
+const server = app.listen(PORT, HOST, () => {
+  logger.info(`✅ Auth Service started successfully`, {
+    host: HOST,
+    port: PORT,
+    environment: getConfig('NODE_ENV'),
+    serviceName: getConfig('SERVICE_NAME'),
+    nodeVersion: process.version,
+    corsOrigins: corsOrigins,
+  });
+});
+
+// Graceful shutdown handling
+process.on('SIGTERM', () => {
+  logger.info('SIGTERM received, shutting down gracefully');
+  server.close(() => {
+    logger.info('Server closed');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  logger.info('SIGINT received, shutting down gracefully');
+  server.close(() => {
+    logger.info('Server closed');
+    process.exit(0);
+  });
+});
