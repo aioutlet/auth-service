@@ -401,8 +401,22 @@ export const resendVerificationEmail = asyncHandler(async (req, res, next) => {
  * @role    User
  */
 export const me = asyncHandler((req, res) => {
-  // Return current user info
   res.json({ user: req.user });
+});
+
+/**
+ * @desc    Verify JWT token
+ * @route   GET /auth/verify
+ * @access  Public (token verification only)
+ */
+export const verify = asyncHandler((req, res) => {
+  // Token is already verified by authMiddleware, just return success with minimal info
+  res.json({
+    valid: true,
+    userId: req.user.id,
+    email: req.user.email,
+    roles: req.user.roles,
+  });
 });
 
 /**

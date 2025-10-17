@@ -19,6 +19,8 @@ router.post('/password/change', authMiddleware, authController.changePassword);
 router.get('/email/verify', authController.verifyEmail);
 router.post('/email/resend', authController.resendVerificationEmail);
 
+// Token verification
+router.get('/verify', authMiddleware, authController.verify);
 router.get('/me', authMiddleware, authorizeRoles('customer', 'admin'), authController.me);
 router.post('/register', authController.register);
 router.route('/reactivate').post(authController.requestAccountReactivation).get(authController.reactivateAccount);

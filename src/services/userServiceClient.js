@@ -12,12 +12,12 @@ export async function getUserByEmail(email) {
         return null;
       }
       // For other errors, log and return null
-      logger.warn('getUserByEmail failed', { status: res.status, email: `${email.substring(0, 3)}***` });
+      logger.warn('getUserByEmail failed', { status: res.status, email });
       return null;
     }
     return await res.json();
   } catch (error) {
-    logger.error('getUserByEmail network error', { error: error.message, email: `${email.substring(0, 3)}***` });
+    logger.error('getUserByEmail network error', { error: error.message, email });
     return null;
   }
 }
