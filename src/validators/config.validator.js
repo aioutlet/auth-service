@@ -32,6 +32,16 @@ const isValidPort = (port) => {
 };
 
 /**
+ * Validates log level
+ * @param {string} level - The log level to validate
+ * @returns {boolean} - True if valid, false otherwise
+ */
+const isValidLogLevel = (level) => {
+  const validLevels = ['error', 'warn', 'info', 'http', 'verbose', 'debug', 'silly'];
+  return validLevels.includes(level?.toLowerCase());
+};
+
+/**
  * Validates NODE_ENV
  * @param {string} env - The environment to validate
  * @returns {boolean} - True if valid, false otherwise
@@ -61,6 +71,11 @@ const validationRules = {
     validator: (value) => value && value.length > 0,
     errorMessage: 'SERVICE_NAME must be a non-empty string',
   },
+  SERVICE_VERSION: {
+    required: true,
+    validator: (value) => value && /^\d+\.\d+\.\d+/.test(value),
+    errorMessage: 'SERVICE_VERSION must be in semantic version format (e.g., 1.0.0)',
+  },
 
   // Security Configuration
   JWT_SECRET: {
@@ -81,6 +96,106 @@ const validationRules = {
     },
     errorMessage: 'CORS_ORIGINS must be a comma-separated list of valid URLs or *',
   },
+
+  // Service Discovery
+  USER_SERVICE_URL: {
+    required: true,
+    validator: isValidUrl,
+    errorMessage: 'USER_SERVICE_URL must be a valid URL',
+  },
+  MESSAGE_BROKER_SERVICE_URL: {
+    required: true,
+    validator: isValidUrl,
+    errorMessage: 'MESSAGE_BROKER_SERVICE_URL must be a valid URL',
+  },
+  MESSAGE_BROKER_API_KEY: {
+    required: true,
+    validator: (value) => value && value.length > 0,
+    errorMessage: 'MESSAGE_BROKER_API_KEY must be a non-empty string',
+  },
+  ADMIN_SERVICE_URL: {
+    required: false,
+    validator: (value) => !value || isValidUrl(value),
+    errorMessage: 'ADMIN_SERVICE_URL must be a valid URL if provided',
+  },
+  AUDIT_SERVICE_URL: {
+    required: false,
+    validator: (value) => !value || isValidUrl(value),
+    errorMessage: 'AUDIT_SERVICE_URL must be a valid URL if provided',
+  },
+
+  // Health Check URLs
+  USER_SERVICE_HEALTH_URL: {
+    required: false,
+    validator: (value) => !value || isValidUrl(value),
+    errorMessage: 'USER_SERVICE_HEALTH_URL must be a valid URL if provided',
+  },
+  ADMIN_SERVICE_HEALTH_URL: {
+    required: false,
+    validator: (value) => !value || isValidUrl(value),
+    errorMessage: 'ADMIN_SERVICE_HEALTH_URL must be a valid URL if provided',
+  },
+  AUDIT_SERVICE_HEALTH_URL: {
+    required: false,
+    validator: (value) => !value || isValidUrl(value),
+    errorMessage: 'AUDIT_SERVICE_HEALTH_URL must be a valid URL if provided',
+  },
+  MESSAGE_BROKER_HEALTH_URL: {
+    required: false,
+    validator: (value) => !value || isValidUrl(value),
+    errorMessage: 'MESSAGE_BROKER_HEALTH_URL must be a valid URL if provided',
+  },
+
+  // Logging Configuration
+  LOG_LEVEL: {
+    required: false,
+    validator: isValidLogLevel,
+    errorMessage: 'LOG_LEVEL must be one of: error, warn, info, http, verbose, debug, silly',
+    default: 'info',
+  },
+  LOG_FORMAT: {
+    required: false,
+    validator: (value) => !value || ['json', 'console'].includes(value?.toLowerCase()),
+    errorMessage: 'LOG_FORMAT must be either json or console',
+    default: 'console',
+  },
+  LOG_TO_CONSOLE: {
+    required: false,
+    validator: (value) => ['true', 'false'].includes(value?.toLowerCase()),
+    errorMessage: 'LOG_TO_CONSOLE must be true or false',
+    default: 'true',
+  },
+  LOG_TO_FILE: {
+    required: false,
+    validator: (value) => ['true', 'false'].includes(value?.toLowerCase()),
+    errorMessage: 'LOG_TO_FILE must be true or false',
+    default: 'false',
+  },
+  LOG_FILE_PATH: {
+    required: false,
+    validator: (value) => !value || (value.length > 0 && value.includes('.')),
+    errorMessage: 'LOG_FILE_PATH must be a valid file path with extension',
+    default: './logs/auth-service.log',
+  },
+
+  // Observability Configuration
+  ENABLE_TRACING: {
+    required: false,
+    validator: (value) => ['true', 'false'].includes(value?.toLowerCase()),
+    errorMessage: 'ENABLE_TRACING must be true or false',
+    default: 'false',
+  },
+  OTEL_EXPORTER_OTLP_ENDPOINT: {
+    required: false,
+    validator: (value) => !value || isValidUrl(value),
+    errorMessage: 'OTEL_EXPORTER_OTLP_ENDPOINT must be a valid URL',
+  },
+  CORRELATION_ID_HEADER: {
+    required: false,
+    validator: (value) => !value || (value.length > 0 && /^[a-z-]+$/.test(value)),
+    errorMessage: 'CORRELATION_ID_HEADER must be lowercase with hyphens only',
+    default: 'x-correlation-id',
+  },
 };
 
 /**
@@ -89,6 +204,7 @@ const validationRules = {
  */
 const validateConfig = () => {
   const errors = [];
+  const warnings = [];
 
   console.log('[CONFIG] Validating environment configuration...');
 
@@ -97,13 +213,22 @@ const validateConfig = () => {
     const value = process.env[key];
 
     // Check if required variable is missing
-    if (!value) {
+    if (rule.required && !value) {
       errors.push(`❌ ${key} is required but not set`);
       continue;
     }
 
+    // Skip validation if value is not set and not required
+    if (!value && !rule.required) {
+      if (rule.default) {
+        warnings.push(`⚠️  ${key} not set, using default: ${rule.default}`);
+        process.env[key] = rule.default;
+      }
+      continue;
+    }
+
     // Validate the value
-    if (rule.validator && !rule.validator(value)) {
+    if (value && rule.validator && !rule.validator(value)) {
       errors.push(`❌ ${key}: ${rule.errorMessage}`);
       if (value.length > 100) {
         errors.push(`   Current value: ${value.substring(0, 100)}...`);
@@ -111,6 +236,12 @@ const validateConfig = () => {
         errors.push(`   Current value: ${value}`);
       }
     }
+  }
+
+  // Display warnings if any
+  if (warnings.length > 0) {
+    console.log('[CONFIG] ⚠️  Configuration warnings:');
+    warnings.forEach((warning) => console.log(`[CONFIG] ${warning}`));
   }
 
   // If there are errors, log them and throw
