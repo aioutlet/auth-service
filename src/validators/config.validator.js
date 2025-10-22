@@ -113,32 +113,12 @@ const validationRules = {
     validator: (value) => value && value.length > 0,
     errorMessage: 'MESSAGE_BROKER_API_KEY must be a non-empty string',
   },
-  ADMIN_SERVICE_URL: {
-    required: false,
-    validator: (value) => !value || isValidUrl(value),
-    errorMessage: 'ADMIN_SERVICE_URL must be a valid URL if provided',
-  },
-  AUDIT_SERVICE_URL: {
-    required: false,
-    validator: (value) => !value || isValidUrl(value),
-    errorMessage: 'AUDIT_SERVICE_URL must be a valid URL if provided',
-  },
 
   // Health Check URLs
   USER_SERVICE_HEALTH_URL: {
     required: false,
     validator: (value) => !value || isValidUrl(value),
     errorMessage: 'USER_SERVICE_HEALTH_URL must be a valid URL if provided',
-  },
-  ADMIN_SERVICE_HEALTH_URL: {
-    required: false,
-    validator: (value) => !value || isValidUrl(value),
-    errorMessage: 'ADMIN_SERVICE_HEALTH_URL must be a valid URL if provided',
-  },
-  AUDIT_SERVICE_HEALTH_URL: {
-    required: false,
-    validator: (value) => !value || isValidUrl(value),
-    errorMessage: 'AUDIT_SERVICE_HEALTH_URL must be a valid URL if provided',
   },
   MESSAGE_BROKER_HEALTH_URL: {
     required: false,

@@ -75,22 +75,12 @@ export async function checkDependencyHealth(dependencies, timeout = 5000) {
 export function getDependencies() {
   const dependencies = {};
 
-  // Add user service if configured
+  // Add user service if configured (for user management operations)
   if (process.env.USER_SERVICE_HEALTH_URL) {
     dependencies['user-service'] = process.env.USER_SERVICE_HEALTH_URL;
   }
 
-  // Add admin service if configured
-  if (process.env.ADMIN_SERVICE_HEALTH_URL) {
-    dependencies['admin-service'] = process.env.ADMIN_SERVICE_HEALTH_URL;
-  }
-
-  // Add audit service if configured
-  if (process.env.AUDIT_SERVICE_HEALTH_URL) {
-    dependencies['audit-service'] = process.env.AUDIT_SERVICE_HEALTH_URL;
-  }
-
-  // Add message broker if configured
+  // Add message broker if configured (for publishing auth events)
   if (process.env.MESSAGE_BROKER_HEALTH_URL) {
     dependencies['message-broker'] = process.env.MESSAGE_BROKER_HEALTH_URL;
   }
