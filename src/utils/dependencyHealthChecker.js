@@ -74,7 +74,12 @@ export async function checkDependencyHealth(dependencies, timeout = 5000) {
 export function getDependencies() {
   const dependencies = {};
 
-  // Add user service if configured (for user management operations)
+  // Add web-bff if configured (for user service communication via BFF)
+  if (process.env.WEB_BFF_HEALTH_URL) {
+    dependencies['web-bff'] = process.env.WEB_BFF_HEALTH_URL;
+  }
+
+  // Add user service if configured (for direct user management operations)
   if (process.env.USER_SERVICE_HEALTH_URL) {
     dependencies['user-service'] = process.env.USER_SERVICE_HEALTH_URL;
   }
