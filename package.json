@@ -38,7 +38,6 @@
     "@opentelemetry/auto-instrumentations-node": "^0.62.2",
     "@opentelemetry/exporter-trace-otlp-http": "^0.203.0",
     "@opentelemetry/sdk-node": "^0.203.0",
-    "amqplib": "^0.10.8",
     "axios": "^1.12.2",
     "bcrypt": "^6.0.0",
     "colors": "^1.4.0",

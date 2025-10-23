@@ -29,12 +29,19 @@ export async function publishEvent(routingKey, eventData) {
     };
 
     const url = `${MESSAGE_BROKER_SERVICE_URL}/api/v1/publish`;
+    const headers = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${MESSAGE_BROKER_API_KEY}`,
+    };
+
+    // Add correlation ID to headers if available
+    if (event.metadata.correlationId) {
+      headers['x-correlation-id'] = event.metadata.correlationId;
+    }
+
     const response = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${MESSAGE_BROKER_API_KEY}`,
-      },
+      headers,
       body: JSON.stringify(payload),
     });
 
