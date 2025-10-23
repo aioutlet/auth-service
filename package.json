@@ -50,7 +50,7 @@
     "jsonwebtoken": "^9.0.0",
     "mongoose": "^8.17.1",
     "morgan": "^1.10.1",
-    "uuid": "^11.1.0",
+    "uuid": "^13.0.0",
     "winston": "^3.17.0"
   },
   "devDependencies": {
