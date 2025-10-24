@@ -23,15 +23,20 @@ export async function publishEvent(routingKey, eventData) {
       },
     };
 
+    // Message broker expects eventType, source, data at root level
     const payload = {
-      topic: routingKey,
-      data: event,
+      eventType: routingKey,
+      source: 'auth-service',
+      eventId: event.eventId,
+      timestamp: event.timestamp,
+      data: eventData,
+      metadata: event.metadata,
     };
 
     const url = `${MESSAGE_BROKER_SERVICE_URL}/api/v1/publish`;
     const headers = {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${MESSAGE_BROKER_API_KEY}`,
+      'X-API-Key': MESSAGE_BROKER_API_KEY,
     };
 
     // Add correlation ID to headers if available
