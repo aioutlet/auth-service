@@ -98,11 +98,6 @@ const validationRules = {
   },
 
   // Service Discovery
-  WEB_BFF_URL: {
-    required: true,
-    validator: isValidUrl,
-    errorMessage: 'WEB_BFF_URL must be a valid URL',
-  },
   USER_SERVICE_URL: {
     required: true,
     validator: isValidUrl,
@@ -120,11 +115,6 @@ const validationRules = {
   },
 
   // Health Check URLs
-  WEB_BFF_HEALTH_URL: {
-    required: false,
-    validator: (value) => !value || isValidUrl(value),
-    errorMessage: 'WEB_BFF_HEALTH_URL must be a valid URL if provided',
-  },
   USER_SERVICE_HEALTH_URL: {
     required: false,
     validator: (value) => !value || isValidUrl(value),
