@@ -22,29 +22,29 @@ import messageBrokerService from '../services/messageBrokerServiceClient.js';
 export const login = asyncHandler(async (req, res, next) => {
   const { email, password } = req.body;
   if (!email || !password) {
-    logger.warn('Login attempt missing credentials', { email });
+    logger.warn('Login attempt missing credentials', req, { email });
     return next(new ErrorResponse('Email and password are required', 400));
   }
   const user = await getUserByEmail(email);
-  logger.info('Fetched user in login', { user });
+  logger.info('Fetched user in login', req);
   if (!user) {
-    logger.warn('Login failed: user not found', { email });
+    logger.warn('Login failed: user not found', req, { email });
     return next(new ErrorResponse('Invalid credentials', 401));
   }
   if (user.isActive === false) {
-    logger.warn('Login failed: account deactivated', { email });
+    logger.warn('Login failed: account deactivated', req, { email });
     return next(new ErrorResponse('Account is deactivated', 403));
   }
   if (!user.isEmailVerified) {
-    logger.warn('Login failed: email not verified', { email });
+    logger.warn('Login failed: email not verified', req, { email });
     return next(new ErrorResponse('Please verify your email before logging in', 403));
   }
   const isMatch = await bcrypt.compare(password, user.password);
   if (!isMatch) {
-    logger.warn('Login failed: invalid password', { email });
+    logger.warn('Login failed: invalid password', req, { email });
     return next(new ErrorResponse('Invalid credentials', 401));
   }
-  logger.info('User logged in', { userId: user._id, email });
+  logger.info('User logged in', req, { userId: user._id, email });
 
   // Issue tokens using consistent helpers
   const token = issueJwtToken(req, res, user);

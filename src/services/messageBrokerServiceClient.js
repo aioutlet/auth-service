@@ -62,6 +62,7 @@ export async function publishEvent(routingKey, eventData) {
         routingKey,
         eventId: event.eventId,
         messageId: result.message_id,
+        correlationId: event.metadata.correlationId,
       });
       return result;
     } else {
@@ -72,6 +73,7 @@ export async function publishEvent(routingKey, eventData) {
       operation: 'message_broker_publish',
       routingKey,
       error: error.message,
+      correlationId: eventData.correlationId,
     });
     // Don't throw - graceful degradation (app continues even if event publishing fails)
     return null;
