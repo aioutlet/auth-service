@@ -1,4 +1,28 @@
 const authValidator = {
+  /**
+   * Validate registration data - minimal validation only
+   * Auth service acts as a proxy; User service owns all business validation
+   * @param {Object} data - Registration data
+   * @param {string} data.email - User email
+   * @param {string} data.password - User password
+   * @param {string} data.firstName - User first name
+   * @param {string} data.lastName - User last name
+   * @returns {Object} Validation result { valid: boolean, error?: string }
+   */
+  validateRegistration({ email, password, firstName, lastName }) {
+    // Only check that required fields are present
+    // User service will handle all format/business validation
+    if (!email || !password) {
+      return { valid: false, error: 'Email and password are required' };
+    }
+
+    if (!firstName || !lastName) {
+      return { valid: false, error: 'First name and last name are required' };
+    }
+
+    return { valid: true };
+  },
+
   validatePasswordChange(oldPassword, newPassword) {
     if (!oldPassword || !newPassword) {
       return { valid: false, error: 'Old and new password are required' };
@@ -8,6 +32,7 @@ const authValidator = {
     }
     return { valid: true };
   },
+
   isValidPassword(password) {
     if (typeof password !== 'string') {
       return { valid: false, error: 'Password must be a string' };

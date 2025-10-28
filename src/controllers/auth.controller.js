@@ -155,13 +155,16 @@ export const forgotPassword = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('User not found', 404));
   }
   const resetToken = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '1h' });
-  const resetUrl = `${process.env.BASE_URL || 'http://localhost:4000'}/auth/password/reset?token=${resetToken}`;
+  const resetUrl = `${process.env.WEB_UI_BASE_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`;
 
   // Publish event for notification-service to send email
   try {
     await messageBrokerService.publishEvent('auth.password.reset.requested', {
       userId: user._id.toString(),
       email: user.email,
+      username: `${user.firstName} ${user.lastName}`,
+      firstName: user.firstName,
+      lastName: user.lastName,
       resetToken,
       resetUrl,
       expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // 1 hour
@@ -371,7 +374,7 @@ export const resendVerificationEmail = asyncHandler(async (req, res, next) => {
 
   // Generate new verification token
   const verifyToken = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '1d' });
-  const verifyUrl = `${process.env.BASE_URL || 'http://localhost:4000'}/api/auth/email/verify?token=${verifyToken}`;
+  const verifyUrl = `${process.env.WEB_UI_BASE_URL || 'http://localhost:3000'}/verify-email?token=${verifyToken}`;
 
   // Publish event for notification-service to send verification email
   try {
@@ -433,34 +436,11 @@ export const register = asyncHandler(async (req, res, next) => {
     hasPhoneNumber: !!phoneNumber,
   });
 
-  // Basic validation
-  if (!email || !password) {
-    return next(new ErrorResponse('Email and password are required', 400));
-  }
-
-  if (!firstName || !lastName) {
-    return next(new ErrorResponse('First name and last name are required', 400));
-  }
-
-  // Validate password strength
-  const passwordValidation = authValidator.isValidPassword(password);
-  if (!passwordValidation.valid) {
-    // If validator provides details, use them; otherwise use the error message
-    if (passwordValidation.details && passwordValidation.details.length > 0) {
-      return next(
-        new ErrorResponse(passwordValidation.error, 400, {
-          field: 'password',
-          requirements: passwordValidation.details,
-        })
-      );
-    }
-    return next(new ErrorResponse(passwordValidation.error, 400));
-  }
-
-  // Check if user already exists
-  const existing = await getUserByEmail(email);
-  if (existing) {
-    return next(new ErrorResponse('User already exists', 409));
+  // Minimal validation - only check required fields
+  // User service will handle all format/business validation
+  const validation = authValidator.validateRegistration({ email, password, firstName, lastName });
+  if (!validation.valid) {
+    return next(new ErrorResponse(validation.error, 400));
   }
 
   // Prepare user data matching UI fields
@@ -469,22 +449,19 @@ export const register = asyncHandler(async (req, res, next) => {
     password,
     firstName,
     lastName,
+    phoneNumber,
     isEmailVerified: false,
     roles: ['customer'], // Set default role for new users
   };
 
-  // Add phone number if provided
-  if (phoneNumber) {
-    userData.phoneNumber = phoneNumber;
-  }
-
   try {
-    // Create user through user service (validation will be handled by the user service)
+    // Create user through user service
+    // User service will check uniqueness and handle all validation
     const user = await createUser(userData);
 
     // Generate email verification token
     const verifyToken = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '1d' });
-    const verifyUrl = `${process.env.BASE_URL || 'http://localhost:4000'}/api/auth/email/verify?token=${verifyToken}`;
+    const verifyUrl = `${process.env.WEB_UI_BASE_URL || 'http://localhost:3000'}/verify-email?token=${verifyToken}`;
 
     // Publish events for notification-service
     try {
@@ -504,6 +481,9 @@ export const register = asyncHandler(async (req, res, next) => {
       await messageBrokerService.publishEvent('auth.email.verification.requested', {
         userId: user._id.toString(),
         email: user.email,
+        username: `${firstName} ${lastName}`, // Add username for template
+        firstName,
+        lastName,
         verificationToken: verifyToken,
         verificationUrl: verifyUrl,
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 1 day
@@ -619,7 +599,9 @@ export const requestAccountReactivation = asyncHandler(async (req, res, next) =>
   }
   // Generate a short-lived reactivation token
   const reactivateToken = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '1h' });
-  const reactivateUrl = `${process.env.BASE_URL || 'http://localhost:4000'}/auth/reactivate?token=${reactivateToken}`;
+  const reactivateUrl = `${
+    process.env.WEB_UI_BASE_URL || 'http://localhost:3000'
+  }/reactivate-account?token=${reactivateToken}`;
 
   // Publish event for notification-service to send reactivation email
   try {
