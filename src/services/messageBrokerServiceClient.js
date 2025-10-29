@@ -72,8 +72,10 @@ export async function publishEvent(routingKey, eventData) {
     logger.error('Failed to publish event via Message Broker Service', null, {
       operation: 'message_broker_publish',
       routingKey,
-      error: error.message,
-      correlationId: eventData.correlationId,
+      error: error.message || 'Unknown error',
+      errorType: error.constructor.name,
+      errorStack: error.stack,
+      correlationId: eventData?.correlationId,
     });
     // Don't throw - graceful degradation (app continues even if event publishing fails)
     return null;
