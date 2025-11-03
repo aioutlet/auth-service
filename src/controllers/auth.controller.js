@@ -8,7 +8,13 @@ import {
   verifyToken,
 } from '../utils/tokenManager.js';
 import { asyncHandler } from '../middlewares/asyncHandler.js';
-import { getUserByEmail, getUserById, createUser } from '../services/userServiceClient.js';
+import {
+  getUserByEmail,
+  getUserById,
+  createUser,
+  deleteUserSelf,
+  deleteUserById,
+} from '../services/userServiceClient.js';
 import authValidator from '../validators/auth.validator.js';
 import logger from '../observability/logging/index.js';
 import ErrorResponse from '../utils/ErrorResponse.js';
@@ -21,29 +27,34 @@ import messageBrokerService from '../services/messageBrokerServiceClient.js';
  */
 export const login = asyncHandler(async (req, res, next) => {
   const { email, password } = req.body;
+
   if (!email || !password) {
     logger.warn('Login attempt missing credentials', req, { email });
     return next(new ErrorResponse('Email and password are required', 400));
   }
+
   const user = await getUserByEmail(email);
-  logger.info('Fetched user in login', req);
   if (!user) {
     logger.warn('Login failed: user not found', req, { email });
     return next(new ErrorResponse('Invalid credentials', 401));
   }
+
   if (user.isActive === false) {
     logger.warn('Login failed: account deactivated', req, { email });
     return next(new ErrorResponse('Account is deactivated', 403));
   }
+
   if (!user.isEmailVerified) {
     logger.warn('Login failed: email not verified', req, { email });
     return next(new ErrorResponse('Please verify your email before logging in', 403));
   }
+
   const isMatch = await bcrypt.compare(password, user.password);
   if (!isMatch) {
     logger.warn('Login failed: invalid password', req, { email });
     return next(new ErrorResponse('Invalid credentials', 401));
   }
+
   logger.info('User logged in', req, { userId: user._id, email });
 
   // Issue tokens using consistent helpers
@@ -92,16 +103,19 @@ export const logout = asyncHandler(async (req, res, next) => {
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
   });
+
   res.clearCookie('jwt', {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
   });
+
   res.clearCookie('csrfToken', {
     httpOnly: false,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
   });
+
   logger.info('User logged out successfully');
   res.json({ message: 'Logged out successfully' });
 });
@@ -129,10 +143,12 @@ export const refreshToken = asyncHandler(async (req, res, next) => {
   const userId = decoded.id;
   const jwtToken = req.cookies?.jwt || null;
   const user = await getUserById(userId, jwtToken);
+
   if (!user) {
     logger.warn('Refresh token user not found', { userId });
     return next(new ErrorResponse('User not found', 401));
   }
+
   logger.info('Refresh token used', { userId: user._id });
   const token = signToken({ id: user._id, email: user.email, roles: user.roles });
   // Rotate refresh token for extra security
@@ -147,13 +163,16 @@ export const refreshToken = asyncHandler(async (req, res, next) => {
  */
 export const forgotPassword = asyncHandler(async (req, res, next) => {
   const { email } = req.body;
+
   if (!email) {
     return next(new ErrorResponse('Email is required', 400));
   }
+
   const user = await getUserByEmail(email);
   if (!user) {
     return next(new ErrorResponse('User not found', 404));
   }
+
   const resetToken = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '1h' });
   const resetUrl = `${process.env.WEB_UI_BASE_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`;
 
@@ -188,19 +207,23 @@ export const forgotPassword = asyncHandler(async (req, res, next) => {
  */
 export const resetPassword = asyncHandler(async (req, res, next) => {
   const { token, newPassword } = req.body;
+
   if (!token || !newPassword) {
     return next(new ErrorResponse('Token and new password are required', 400));
   }
+
   let payload;
   try {
     payload = jwt.verify(token, process.env.JWT_SECRET);
   } catch {
     return next(new ErrorResponse('Invalid or expired token', 400));
   }
+
   const user = await getUserByEmail(payload.email);
   if (!user) {
     return next(new ErrorResponse('User not found', 404));
   }
+
   // Call user-service PATCH /users/ to update password (self-service endpoint)
   const resp = await fetch(`${process.env.USER_SERVICE_URL}/users/`, {
     method: 'PATCH',
@@ -545,38 +568,26 @@ export const register = asyncHandler(async (req, res, next) => {
       statusCode: error.statusCode,
     });
 
-    // Handle specific error types
-    if (error.statusCode === 503) {
-      return next(new ErrorResponse('User service is temporarily unavailable. Please try again later.', 503));
-    }
+    // Handle specific error status codes
+    switch (error.statusCode) {
+      case 503:
+        return next(new ErrorResponse('User service is temporarily unavailable. Please try again later.', 503));
 
-    if (error.statusCode === 400 || (error.message && error.message.includes('validation'))) {
-      // Extract error message, handling cases where error.details.error is an object
-      let errorMsg = 'Registration data validation failed';
-      if (error.details?.error) {
-        if (typeof error.details.error === 'string') {
-          errorMsg = error.details.error;
-        } else if (error.details.error.message) {
-          errorMsg = error.details.error.message;
-        } else {
-          errorMsg = JSON.stringify(error.details.error);
-        }
-      } else if (error.message) {
-        errorMsg = error.message;
-      }
-      return next(new ErrorResponse(errorMsg, 400));
-    }
+      case 400:
+        // userServiceClient already extracted the error message into error.message
+        return next(new ErrorResponse(error.message || 'Registration data validation failed', 400));
 
-    if (error.statusCode === 409 || error.message.includes('duplicate') || error.message.includes('already exists')) {
-      return next(new ErrorResponse('A user with this email already exists', 409));
-    }
+      case 409:
+        return next(new ErrorResponse('A user with this email already exists', 409));
 
-    // Generic error with actual message for debugging in dev
-    const errorMsg =
-      process.env.NODE_ENV === 'development'
-        ? `Registration failed: ${error.message}`
-        : 'Registration failed. Please try again.';
-    return next(new ErrorResponse(errorMsg, error.statusCode || 500));
+      default:
+        // Generic error with actual message in development mode
+        const errorMsg =
+          process.env.NODE_ENV === 'development'
+            ? `Registration failed: ${error.message}`
+            : 'Registration failed. Please try again.';
+        return next(new ErrorResponse(errorMsg, error.statusCode || 500));
+    }
   }
 });
 
@@ -590,10 +601,12 @@ export const requestAccountReactivation = asyncHandler(async (req, res, next) =>
   if (!email) {
     return next(new ErrorResponse('Email is required', 400));
   }
+
   const user = await getUserByEmail(email);
   if (!user) {
     return next(new ErrorResponse('User not found', 404));
   }
+
   if (user.isActive) {
     return next(new ErrorResponse('Account is already active.', 400));
   }
@@ -633,16 +646,19 @@ export const reactivateAccount = asyncHandler(async (req, res, next) => {
   if (!token) {
     return next(new ErrorResponse('Token is required', 400));
   }
+
   let payload;
   try {
     payload = jwt.verify(token, process.env.JWT_SECRET);
   } catch {
     return next(new ErrorResponse('Invalid or expired token', 400));
   }
+
   const user = await getUserByEmail(payload.email);
   if (!user) {
     return next(new ErrorResponse('User not found', 404));
   }
+
   if (user.isActive) {
     return res.json({ message: 'Account is already active.' });
   }
@@ -677,7 +693,7 @@ export const reactivateAccount = asyncHandler(async (req, res, next) => {
  */
 export const deleteAccount = asyncHandler(async (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1] || req.cookies.jwt;
-  const success = await import('../services/userServiceClient.js').then((m) => m.deleteUserSelf(token));
+  const success = await deleteUserSelf(token);
   if (!success) {
     return next(new ErrorResponse('User not found', 404));
   }
@@ -692,7 +708,7 @@ export const deleteAccount = asyncHandler(async (req, res, next) => {
 export const adminDeleteUser = asyncHandler(async (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1] || req.cookies.jwt;
   const { id } = req.params;
-  const success = await import('../services/userServiceClient.js').then((m) => m.deleteUserById(id, token));
+  const success = await deleteUserById(id, token);
   if (!success) {
     return next(new ErrorResponse('User not found', 404));
   }
