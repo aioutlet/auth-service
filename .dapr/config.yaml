@@ -1,0 +1,15 @@
+apiVersion: dapr.io/v1alpha1
+kind: Configuration
+metadata:
+  name: auth-service-config
+spec:
+  # Suppress scheduler warnings for services that don't use scheduling features
+  features:
+    - name: SchedulerReminders
+      enabled: false
+  # Disable actor placement since auth-service doesn't use actors
+  mtls:
+    enabled: false
+  # Optional: Tracing configuration (Zipkin not running)
+  tracing:
+    samplingRate: '0'

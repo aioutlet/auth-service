@@ -6,15 +6,11 @@ spec:
   type: pubsub.rabbitmq
   version: v1
   metadata:
-    # RabbitMQ connection using secrets
+    # RabbitMQ connection using connectionString (recommended)
     - name: connectionString
-      secretKeyRef:
-        name: rabbitmq-connection
-        key: connectionString
-    - name: protocol
-      value: 'amqp'
-    - name: hostname
-      value: '127.0.0.1'
+      value: 'amqp://admin:admin123@127.0.0.1:5672'
+    - name: consumerID
+      value: 'auth-service'
     - name: durable
       value: 'true'
     - name: deletedWhenUnused
@@ -34,8 +30,6 @@ spec:
     # Exchange configuration
     - name: exchangeKind
       value: 'topic'
-auth:
-  secretStore: local-secret-store
 scopes:
   - auth-service
   - audit-service
