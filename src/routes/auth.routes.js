@@ -1,14 +1,12 @@
 import express from 'express';
 import * as authController from '../controllers/auth.controller.js';
 import { authMiddleware, authorizeRoles } from '../middlewares/auth.middleware.js';
-import { requireCsrfToken } from '../middlewares/csrf.middleware.js';
 
 const router = express.Router();
 
 // Local login
 router.post('/login', authController.login);
-router.post('/logout', authMiddleware, requireCsrfToken, authController.logout);
-router.post('/token/refresh', authController.refreshToken);
+router.post('/logout', authMiddleware, authController.logout);
 
 // Password operations
 router.post('/password/forgot', authController.forgotPassword);

@@ -1,0 +1,41 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: auth-pubsub
+spec:
+  type: pubsub.rabbitmq
+  version: v1
+  metadata:
+    # RabbitMQ connection using secrets
+    - name: connectionString
+      secretKeyRef:
+        name: rabbitmq-connection
+        key: connectionString
+    - name: protocol
+      value: 'amqp'
+    - name: hostname
+      value: '127.0.0.1'
+    - name: durable
+      value: 'true'
+    - name: deletedWhenUnused
+      value: 'false'
+    - name: autoAck
+      value: 'false'
+    - name: deliveryMode
+      value: '2' # Persistent messages
+    - name: requeueInFailure
+      value: 'true'
+    - name: prefetchCount
+      value: '10'
+    - name: reconnectWait
+      value: '5'
+    - name: concurrency
+      value: 'parallel'
+    # Exchange configuration
+    - name: exchangeKind
+      value: 'topic'
+auth:
+  secretStore: local-secret-store
+scopes:
+  - auth-service
+  - audit-service

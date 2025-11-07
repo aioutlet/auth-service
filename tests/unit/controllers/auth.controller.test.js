@@ -1,5 +1,5 @@
 // Comprehensive tests for Auth Controller
-import { createMockReqRes, createMockNext, createMockUser } from '../utils/testHelpers.js';
+import { createMockReqRes, createMockNext, createMockUser } from '../../shared/testHelpers.js';
 
 describe('Auth Controller', () => {
   beforeEach(() => {
@@ -157,13 +157,13 @@ describe('Auth Controller', () => {
     it('should handle authentication cookies', () => {
       const { req, res } = createMockReqRes({
         cookies: {
-          jwt: 'jwt-token',
+          token: 'jwt-token',
           refreshToken: 'refresh-token',
           csrfToken: 'csrf-token',
         },
       });
 
-      expect(req.cookies.jwt).toBe('jwt-token');
+      expect(req.cookies.token).toBe('jwt-token');
       expect(req.cookies.refreshToken).toBe('refresh-token');
       expect(req.cookies.csrfToken).toBe('csrf-token');
     });

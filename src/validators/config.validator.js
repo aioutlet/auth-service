@@ -66,22 +66,22 @@ const validationRules = {
     validator: isValidPort,
     errorMessage: 'PORT must be a valid port number (1-65535)',
   },
-  SERVICE_NAME: {
+  NAME: {
     required: true,
     validator: (value) => value && value.length > 0,
-    errorMessage: 'SERVICE_NAME must be a non-empty string',
+    errorMessage: 'NAME must be a non-empty string',
   },
-  SERVICE_VERSION: {
+  VERSION: {
     required: true,
     validator: (value) => value && /^\d+\.\d+\.\d+/.test(value),
-    errorMessage: 'SERVICE_VERSION must be in semantic version format (e.g., 1.0.0)',
+    errorMessage: 'VERSION must be in semantic version format (e.g., 1.0.0)',
   },
 
-  // Security Configuration
+  // Security Configuration (JWT managed by Dapr Secret Manager)
   JWT_SECRET: {
-    required: true,
-    validator: (value) => value && value.length >= 32,
-    errorMessage: 'JWT_SECRET must be at least 32 characters long',
+    required: false, // Optional: Dapr Secret Manager handles this, falls back to env var
+    validator: (value) => !value || value.length >= 32,
+    errorMessage: 'JWT_SECRET must be at least 32 characters long if provided',
   },
 
   // CORS Configuration
@@ -98,32 +98,10 @@ const validationRules = {
   },
 
   // Service Discovery
-  USER_SERVICE_URL: {
-    required: true,
-    validator: isValidUrl,
-    errorMessage: 'USER_SERVICE_URL must be a valid URL',
-  },
-  MESSAGE_BROKER_SERVICE_URL: {
-    required: true,
-    validator: isValidUrl,
-    errorMessage: 'MESSAGE_BROKER_SERVICE_URL must be a valid URL',
-  },
-  MESSAGE_BROKER_API_KEY: {
+  USER_SERVICE_APP_ID: {
     required: true,
     validator: (value) => value && value.length > 0,
-    errorMessage: 'MESSAGE_BROKER_API_KEY must be a non-empty string',
-  },
-
-  // Health Check URLs
-  USER_SERVICE_HEALTH_URL: {
-    required: false,
-    validator: (value) => !value || isValidUrl(value),
-    errorMessage: 'USER_SERVICE_HEALTH_URL must be a valid URL if provided',
-  },
-  MESSAGE_BROKER_HEALTH_URL: {
-    required: false,
-    validator: (value) => !value || isValidUrl(value),
-    errorMessage: 'MESSAGE_BROKER_HEALTH_URL must be a valid URL if provided',
+    errorMessage: 'USER_SERVICE_APP_ID must be a non-empty string',
   },
 
   // Logging Configuration
@@ -159,17 +137,6 @@ const validationRules = {
   },
 
   // Observability Configuration
-  ENABLE_TRACING: {
-    required: false,
-    validator: (value) => ['true', 'false'].includes(value?.toLowerCase()),
-    errorMessage: 'ENABLE_TRACING must be true or false',
-    default: 'false',
-  },
-  OTEL_EXPORTER_OTLP_ENDPOINT: {
-    required: false,
-    validator: (value) => !value || isValidUrl(value),
-    errorMessage: 'OTEL_EXPORTER_OTLP_ENDPOINT must be a valid URL',
-  },
   CORRELATION_ID_HEADER: {
     required: false,
     validator: (value) => !value || (value.length > 0 && /^[a-z-]+$/.test(value)),

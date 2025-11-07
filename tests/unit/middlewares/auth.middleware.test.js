@@ -1,6 +1,6 @@
 import { authMiddleware, authorizeRoles } from '../../../src/middlewares/auth.middleware.js';
-import { createMockReqRes, createMockNext, createMockUser } from '../utils/testHelpers.js';
-import ErrorResponse from '../../../src/utils/ErrorResponse.js';
+import { createMockReqRes, createMockNext, createMockUser } from '../../shared/testHelpers.js';
+import ErrorResponse from '../../../src/core/errors.js';
 import jwt from 'jsonwebtoken';
 
 // Mock JWT for testing

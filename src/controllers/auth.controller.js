@@ -1,24 +1,11 @@
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
-import {
-  signToken,
-  issueJwtToken,
-  issueRefreshToken,
-  issueCsrfToken as issueCsrfTokenConsistent,
-  verifyToken,
-} from '../utils/tokenManager.js';
+import { signToken, issueJwtToken, verifyToken } from '../core/tokenManager.js';
 import { asyncHandler } from '../middlewares/asyncHandler.js';
-import {
-  getUserByEmail,
-  getUserById,
-  createUser,
-  deleteUserSelf,
-  deleteUserById,
-} from '../services/userServiceClient.js';
+import { getUserByEmail, createUser, deleteUserSelf, deleteUserById } from '../services/userServiceClient.js';
 import authValidator from '../validators/auth.validator.js';
-import logger from '../observability/logging/index.js';
-import ErrorResponse from '../utils/ErrorResponse.js';
-import messageBrokerService from '../services/messageBrokerServiceClient.js';
+import logger from '../core/logger.js';
+import ErrorResponse from '../core/errors.js';
+import { publishEvent } from '../services/dapr.client.js';
 
 /**
  * @desc    Log in a user with email and password
@@ -57,19 +44,16 @@ export const login = asyncHandler(async (req, res, next) => {
 
   logger.info('User logged in', req, { userId: user._id, email });
 
-  // Issue tokens using consistent helpers
-  const token = issueJwtToken(req, res, user);
-  const refreshTokenDoc = await issueRefreshToken(req, res, user);
-  await issueCsrfTokenConsistent(req, res, user);
+  // Issue JWT token
+  const token = await issueJwtToken(req, res, user);
 
-  // Publish login event via Message Broker Service
+  // Publish login event
   try {
-    await messageBrokerService.publishEvent('auth.login', {
+    await publishEvent('auth.login', {
       userId: user._id.toString(),
       email: user.email,
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
-      sessionId: refreshTokenDoc._id.toString(),
       correlationId: req.correlationId,
       timestamp: new Date().toISOString(),
       success: true,
@@ -78,82 +62,36 @@ export const login = asyncHandler(async (req, res, next) => {
     logger.error('Failed to publish login event', req, { operation: 'publish_login_event', error });
   }
 
-  res.json({ jwt: token, user });
+  // Return token in response body for mobile/SPA clients
+  res.json({
+    success: true,
+    token,
+    user: {
+      id: user._id,
+      email: user.email,
+      name: user.name || `${user.firstName} ${user.lastName}`.trim(),
+      roles: user.roles,
+      isEmailVerified: user.isEmailVerified,
+    },
+  });
 });
 
 /**
- * @desc    Log out the current user (clear cookies, revoke refresh token)
+ * @desc    Log out the current user (clear JWT cookie)
  * @route   POST /auth/logout
  * @access  Private
  * @role    User
  */
-export const logout = asyncHandler(async (req, res, next) => {
-  // Read refresh token from cookie
-  const refreshToken = req.cookies?.refreshToken;
-  // CSRF protection is now enforced at the route level, not here
-  if (!refreshToken) {
-    logger.warn('Logout attempt missing refresh token');
-    return next(new ErrorResponse('Refresh token required', 400));
-  }
-
-  // For stateless tokens, we just clear the cookies (no database operation needed)
-  // Clear the cookies
-  res.clearCookie('refreshToken', {
+export const logout = asyncHandler(async (req, res) => {
+  // Clear token cookie
+  res.clearCookie('token', {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
   });
 
-  res.clearCookie('jwt', {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-  });
-
-  res.clearCookie('csrfToken', {
-    httpOnly: false,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-  });
-
-  logger.info('User logged out successfully');
+  logger.info('User logged out successfully', req, { userId: req.user?.id });
   res.json({ message: 'Logged out successfully' });
-});
-
-/**
- * @desc    Issue a new JWT using a valid refresh token
- * @route   POST /auth/refreshToken
- * @access  Public
- */
-export const refreshToken = asyncHandler(async (req, res, next) => {
-  // Read refresh token from HTTP-only cookie
-  const refreshToken = req.cookies?.refreshToken;
-  if (!refreshToken) {
-    logger.warn('Refresh token missing');
-    return next(new ErrorResponse('Refresh token required', 400));
-  }
-
-  // Verify the refresh token (stateless)
-  const decoded = verifyToken(refreshToken);
-  if (!decoded || decoded.type !== 'refresh') {
-    logger.warn('Invalid or expired refresh token');
-    return next(new ErrorResponse('Invalid or expired refresh token', 401));
-  }
-
-  const userId = decoded.id;
-  const jwtToken = req.cookies?.jwt || null;
-  const user = await getUserById(userId, jwtToken);
-
-  if (!user) {
-    logger.warn('Refresh token user not found', { userId });
-    return next(new ErrorResponse('User not found', 401));
-  }
-
-  logger.info('Refresh token used', { userId: user._id });
-  const token = signToken({ id: user._id, email: user.email, roles: user.roles });
-  // Rotate refresh token for extra security
-  await issueRefreshToken(req, res, user);
-  res.json({ jwt: token });
 });
 
 /**
@@ -173,12 +111,12 @@ export const forgotPassword = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('User not found', 404));
   }
 
-  const resetToken = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '1h' });
+  const resetToken = await signToken({ email }, '1h');
   const resetUrl = `${process.env.WEB_UI_BASE_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`;
 
   // Publish event for notification-service to send email
   try {
-    await messageBrokerService.publishEvent('auth.password.reset.requested', {
+    await publishEvent('auth.password.reset.requested', {
       userId: user._id.toString(),
       email: user.email,
       username: `${user.firstName} ${user.lastName}`,
@@ -212,10 +150,8 @@ export const resetPassword = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Token and new password are required', 400));
   }
 
-  let payload;
-  try {
-    payload = jwt.verify(token, process.env.JWT_SECRET);
-  } catch {
+  const payload = await verifyToken(token);
+  if (!payload) {
     return next(new ErrorResponse('Invalid or expired token', 400));
   }
 
@@ -237,7 +173,7 @@ export const resetPassword = asyncHandler(async (req, res, next) => {
 
   // Publish event for notification-service to send confirmation email
   try {
-    await messageBrokerService.publishEvent('auth.password.reset.completed', {
+    await publishEvent('auth.password.reset.completed', {
       userId: user._id.toString(),
       email: user.email,
       changedAt: new Date().toISOString(),
@@ -293,8 +229,8 @@ export const changePassword = asyncHandler(async (req, res, next) => {
   let jwtToken = null;
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
     jwtToken = req.headers.authorization.split(' ')[1];
-  } else if (req.cookies && req.cookies.jwt) {
-    jwtToken = req.cookies.jwt;
+  } else if (req.cookies && req.cookies.token) {
+    jwtToken = req.cookies.token;
   }
   if (!jwtToken) {
     return next(new ErrorResponse('JWT missing', 401));
@@ -334,10 +270,8 @@ export const verifyEmail = asyncHandler(async (req, res, next) => {
   if (!token) {
     return next(new ErrorResponse('Token is required', 400));
   }
-  let payload;
-  try {
-    payload = jwt.verify(token, process.env.JWT_SECRET);
-  } catch {
+  const payload = await verifyToken(token);
+  if (!payload) {
     return next(new ErrorResponse('Invalid or expired token', 400));
   }
   // Mark user as verified in user service
@@ -349,7 +283,7 @@ export const verifyEmail = asyncHandler(async (req, res, next) => {
     return res.json({ message: 'Email already verified' });
   }
   // Issue a short-lived JWT for the user to authorize the PATCH
-  const userJwt = signToken({ id: user._id, email: user.email, roles: user.roles }, '15m');
+  const userJwt = await signToken({ id: user._id, email: user.email, roles: user.roles }, '15m');
   const resp = await fetch(`${process.env.USER_SERVICE_URL}`, {
     method: 'PATCH',
     headers: {
@@ -396,12 +330,12 @@ export const resendVerificationEmail = asyncHandler(async (req, res, next) => {
   }
 
   // Generate new verification token
-  const verifyToken = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '1d' });
+  const verifyToken = await signToken({ email }, '1d');
   const verifyUrl = `${process.env.WEB_UI_BASE_URL || 'http://localhost:3000'}/verify-email?token=${verifyToken}`;
 
   // Publish event for notification-service to send verification email
   try {
-    await messageBrokerService.publishEvent('auth.email.verification.requested', {
+    await publishEvent('auth.email.verification.requested', {
       userId: user._id.toString(),
       email: user.email,
       verificationToken: verifyToken,
@@ -483,13 +417,13 @@ export const register = asyncHandler(async (req, res, next) => {
     const user = await createUser(userData);
 
     // Generate email verification token
-    const verifyToken = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '1d' });
+    const verifyToken = await signToken({ email }, '1d');
     const verifyUrl = `${process.env.WEB_UI_BASE_URL || 'http://localhost:3000'}/verify-email?token=${verifyToken}`;
 
     // Publish events for notification-service
     try {
       // User registered event
-      await messageBrokerService.publishEvent('auth.user.registered', {
+      await publishEvent('auth.user.registered', {
         userId: user._id.toString(),
         email: user.email,
         name: `${firstName} ${lastName}`,
@@ -501,7 +435,7 @@ export const register = asyncHandler(async (req, res, next) => {
       });
 
       // Email verification event
-      await messageBrokerService.publishEvent('auth.email.verification.requested', {
+      await publishEvent('auth.email.verification.requested', {
         userId: user._id.toString(),
         email: user.email,
         username: `${firstName} ${lastName}`, // Add username for template
@@ -611,14 +545,14 @@ export const requestAccountReactivation = asyncHandler(async (req, res, next) =>
     return next(new ErrorResponse('Account is already active.', 400));
   }
   // Generate a short-lived reactivation token
-  const reactivateToken = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '1h' });
+  const reactivateToken = await signToken({ email }, '1h');
   const reactivateUrl = `${
     process.env.WEB_UI_BASE_URL || 'http://localhost:3000'
   }/reactivate-account?token=${reactivateToken}`;
 
   // Publish event for notification-service to send reactivation email
   try {
-    await messageBrokerService.publishEvent('auth.account.reactivation.requested', {
+    await publishEvent('auth.account.reactivation.requested', {
       userId: user._id.toString(),
       email: user.email,
       reactivationToken: reactivateToken,
@@ -647,10 +581,8 @@ export const reactivateAccount = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Token is required', 400));
   }
 
-  let payload;
-  try {
-    payload = jwt.verify(token, process.env.JWT_SECRET);
-  } catch {
+  const payload = await verifyToken(token);
+  if (!payload) {
     return next(new ErrorResponse('Invalid or expired token', 400));
   }
 
@@ -663,7 +595,7 @@ export const reactivateAccount = asyncHandler(async (req, res, next) => {
     return res.json({ message: 'Account is already active.' });
   }
   // Issue a short-lived JWT for the user to authorize the PATCH
-  const userJwt = signToken({ id: user._id, email: user.email, roles: user.roles }, '15m');
+  const userJwt = await signToken({ id: user._id, email: user.email, roles: user.roles }, '15m');
   const resp = await fetch(`${process.env.USER_SERVICE_URL}`, {
     method: 'PATCH',
     headers: {
@@ -692,7 +624,7 @@ export const reactivateAccount = asyncHandler(async (req, res, next) => {
  * @access  Private
  */
 export const deleteAccount = asyncHandler(async (req, res, next) => {
-  const token = req.headers.authorization?.split(' ')[1] || req.cookies.jwt;
+  const token = req.headers.authorization?.split(' ')[1] || req.cookies.token;
   const success = await deleteUserSelf(token);
   if (!success) {
     return next(new ErrorResponse('User not found', 404));
@@ -706,7 +638,7 @@ export const deleteAccount = asyncHandler(async (req, res, next) => {
  * @access  Admin only
  */
 export const adminDeleteUser = asyncHandler(async (req, res, next) => {
-  const token = req.headers.authorization?.split(' ')[1] || req.cookies.jwt;
+  const token = req.headers.authorization?.split(' ')[1] || req.cookies.token;
   const { id } = req.params;
   const success = await deleteUserById(id, token);
   if (!success) {

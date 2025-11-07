@@ -1,0 +1,66 @@
+apiVersion: dapr.io/v1alpha1
+kind: Subscription
+metadata:
+  name: auth-login-subscription
+spec:
+  topic: auth.login
+  route: /events/auth/login
+  pubsubname: auth-pubsub
+scopes:
+  - audit-service
+---
+apiVersion: dapr.io/v1alpha1
+kind: Subscription
+metadata:
+  name: auth-user-registered-subscription
+spec:
+  topic: auth.user.registered
+  route: /events/auth/user-registered
+  pubsubname: auth-pubsub
+scopes:
+  - audit-service
+  - notification-service
+---
+apiVersion: dapr.io/v1alpha1
+kind: Subscription
+metadata:
+  name: auth-password-reset-requested-subscription
+spec:
+  topic: auth.password.reset.requested
+  route: /events/auth/password-reset-requested
+  pubsubname: auth-pubsub
+scopes:
+  - notification-service
+---
+apiVersion: dapr.io/v1alpha1
+kind: Subscription
+metadata:
+  name: auth-password-reset-completed-subscription
+spec:
+  topic: auth.password.reset.completed
+  route: /events/auth/password-reset-completed
+  pubsubname: auth-pubsub
+scopes:
+  - audit-service
+---
+apiVersion: dapr.io/v1alpha1
+kind: Subscription
+metadata:
+  name: auth-email-verification-requested-subscription
+spec:
+  topic: auth.email.verification.requested
+  route: /events/auth/email-verification-requested
+  pubsubname: auth-pubsub
+scopes:
+  - notification-service
+---
+apiVersion: dapr.io/v1alpha1
+kind: Subscription
+metadata:
+  name: auth-account-reactivation-requested-subscription
+spec:
+  topic: auth.account.reactivation.requested
+  route: /events/auth/account-reactivation-requested
+  pubsubname: auth-pubsub
+scopes:
+  - notification-service

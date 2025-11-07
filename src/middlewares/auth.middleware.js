@@ -1,7 +1,18 @@
 import jwt from 'jsonwebtoken';
 import { asyncHandler } from './asyncHandler.js';
-import ErrorResponse from '../utils/ErrorResponse.js';
-import logger from '../observability/logging/index.js';
+import ErrorResponse from '../core/errors.js';
+import logger from '../core/logger.js';
+import { getJwtConfig } from '../services/dapr.secretManager.js';
+
+// Cache JWT config to avoid repeated Dapr calls
+let _jwtConfigCache = null;
+
+async function getCachedJwtConfig() {
+  if (_jwtConfigCache === null) {
+    _jwtConfigCache = await getJwtConfig();
+  }
+  return _jwtConfigCache;
+}
 
 /**
  * Middleware for JWT authentication in the auth service.
@@ -13,8 +24,8 @@ const authMiddleware = asyncHandler(async (req, res, next) => {
 
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
     token = req.headers.authorization.split(' ')[1];
-  } else if (req.cookies && req.cookies.jwt) {
-    token = req.cookies.jwt;
+  } else if (req.cookies && req.cookies.token) {
+    token = req.cookies.token;
   }
 
   if (!token) {
@@ -23,11 +34,21 @@ const authMiddleware = asyncHandler(async (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const jwtConfig = await getCachedJwtConfig();
+    const decoded = jwt.verify(token, jwtConfig.secret);
+
+    // Validate standard claims
+    if (!decoded.sub || !decoded.iss || !decoded.aud) {
+      throw new Error('Invalid token structure');
+    }
+
+    // Map standard JWT claims to req.user
     req.user = {
-      id: decoded.id,
+      id: decoded.sub, // Standard 'sub' claim
       email: decoded.email,
-      roles: decoded.roles,
+      name: decoded.name,
+      roles: decoded.roles || [],
+      emailVerified: decoded.emailVerified || false,
     };
     next();
   } catch (error) {
