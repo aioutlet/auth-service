@@ -28,6 +28,7 @@
     "test": "jest",
     "test:unit": "jest tests/unit",
     "test:integration": "jest tests/integration --runInBand",
+    "test:e2e": "jest tests/e2e --runInBand --testTimeout=30000",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "lint": "eslint .",
