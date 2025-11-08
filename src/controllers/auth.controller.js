@@ -397,10 +397,11 @@ export const verify = asyncHandler((req, res) => {
 export const register = asyncHandler(async (req, res, next) => {
   const { email, password, firstName, lastName, phoneNumber } = req.body;
 
-  // Track operation start
-  const operationStart = logger.operationStart('user_registration', req, {
+  // Log registration attempt
+  logger.info('User registration started', {
     email,
     hasPhoneNumber: !!phoneNumber,
+    correlationId: req.correlationId,
   });
 
   // Minimal validation - only check required fields
@@ -473,18 +474,13 @@ export const register = asyncHandler(async (req, res, next) => {
       });
     }
 
-    // Log as business event with duration
-    logger.operationComplete('user_registration', operationStart, req, {
-      userId: user._id,
-      email,
-    });
-
-    logger.business('USER_REGISTERED', req, {
+    logger.info('USER_REGISTERED', {
       userId: user._id,
       email,
       firstName,
       lastName,
       hasPhoneNumber: !!phoneNumber,
+      correlationId: req.correlationId,
     });
 
     res.status(201).json({
@@ -501,16 +497,11 @@ export const register = asyncHandler(async (req, res, next) => {
       },
     });
   } catch (error) {
-    logger.operationFailed('user_registration', operationStart, error, req, {
-      email,
-      statusCode: error.statusCode,
-      details: error.details,
-    });
-
-    logger.security('REGISTRATION_FAILED', req, {
+    logger.error('REGISTRATION_FAILED', {
       email,
       reason: error.message,
       statusCode: error.statusCode,
+      correlationId: req.correlationId,
     });
 
     // Handle specific error status codes
