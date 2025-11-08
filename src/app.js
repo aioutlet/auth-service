@@ -45,7 +45,7 @@ app.use((err, req, res, _next) => {
   const correlationId = req.correlationId || 'no-correlation';
 
   // Log the error with full details
-  logger.error(`Request failed: ${req.method} ${req.originalUrl} - ${err.message || 'Unknown error'}`, req, {
+  logger.error(`Request failed: ${req.method} ${req.originalUrl} - ${err.message || 'Unknown error'}`, {
     correlationId,
     method: req.method,
     url: req.originalUrl,

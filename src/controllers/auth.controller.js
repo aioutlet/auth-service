@@ -16,33 +16,33 @@ export const login = asyncHandler(async (req, res, next) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
-    logger.warn('Login attempt missing credentials', req, { email });
+    logger.warn('Login attempt missing credentials', { email, correlationId: req.correlationId });
     return next(new ErrorResponse('Email and password are required', 400));
   }
 
   const user = await getUserByEmail(email);
   if (!user) {
-    logger.warn('Login failed: user not found', req, { email });
+    logger.warn('Login failed: user not found', { email, correlationId: req.correlationId });
     return next(new ErrorResponse('Invalid credentials', 401));
   }
 
   if (user.isActive === false) {
-    logger.warn('Login failed: account deactivated', req, { email });
+    logger.warn('Login failed: account deactivated', { email, correlationId: req.correlationId });
     return next(new ErrorResponse('Account is deactivated', 403));
   }
 
   if (!user.isEmailVerified) {
-    logger.warn('Login failed: email not verified', req, { email });
+    logger.warn('Login failed: email not verified', { email, correlationId: req.correlationId });
     return next(new ErrorResponse('Please verify your email before logging in', 403));
   }
 
   const isMatch = await bcrypt.compare(password, user.password);
   if (!isMatch) {
-    logger.warn('Login failed: invalid password', req, { email });
+    logger.warn('Login failed: invalid password', { email, correlationId: req.correlationId });
     return next(new ErrorResponse('Invalid credentials', 401));
   }
 
-  logger.info('User logged in', req, { userId: user._id, email });
+  logger.info('User logged in', { userId: user._id, email, correlationId: req.correlationId });
 
   // Issue JWT token
   const token = await issueJwtToken(req, res, user);
@@ -59,7 +59,11 @@ export const login = asyncHandler(async (req, res, next) => {
       success: true,
     });
   } catch (error) {
-    logger.error('Failed to publish login event', req, { operation: 'publish_login_event', error });
+    logger.error('Failed to publish login event', {
+      operation: 'publish_login_event',
+      error,
+      correlationId: req.correlationId,
+    });
   }
 
   // Return token in response body for mobile/SPA clients
@@ -67,11 +71,17 @@ export const login = asyncHandler(async (req, res, next) => {
     success: true,
     token,
     user: {
+      _id: user._id,
       id: user._id,
       email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
       name: user.name || `${user.firstName} ${user.lastName}`.trim(),
       roles: user.roles,
       isEmailVerified: user.isEmailVerified,
+      isActive: user.isActive,
+      createdAt: user.createdAt,
+      lastLoginAt: new Date().toISOString(),
     },
   });
 });
@@ -90,7 +100,7 @@ export const logout = asyncHandler(async (req, res) => {
     sameSite: 'strict',
   });
 
-  logger.info('User logged out successfully', req, { userId: req.user?.id });
+  logger.info('User logged out successfully', { userId: req.user?.id, correlationId: req.correlationId });
   res.json({ message: 'Logged out successfully' });
 });
 
@@ -448,10 +458,11 @@ export const register = asyncHandler(async (req, res, next) => {
         timestamp: new Date().toISOString(),
       });
 
-      logger.info('User registration and verification events published', req, {
+      logger.info('User registration and verification events published', {
         operation: 'publish_registration_events',
         email,
         userId: user._id,
+        correlationId: req.correlationId,
       });
     } catch (eventError) {
       logger.warn('Failed to publish user registration events, but registration succeeded', req, {

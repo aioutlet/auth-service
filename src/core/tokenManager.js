@@ -33,7 +33,7 @@ export async function verifyToken(token) {
  * Returns the token string.
  */
 export async function issueJwtToken(req, res, user) {
-  logger.debug('Issuing JWT for user', req, { operation: 'issue_jwt', userId: user._id });
+  logger.debug('Issuing JWT for user', { operation: 'issue_jwt', userId: user._id, correlationId: req.correlationId });
 
   // Standard JWT claims (RFC 7519)
   const payload = {
@@ -42,7 +42,7 @@ export async function issueJwtToken(req, res, user) {
     iss: 'auth-service', // Issuer
     aud: 'aioutlet-platform', // Audience
     iat: Math.floor(Date.now() / 1000), // Issued at
-    exp: Math.floor(Date.now() / 1000) + 3600, // Expires in 1 hour
+    // exp will be set by signToken via expiresIn option
 
     // Custom claims
     email: user.email,
