@@ -1,10 +1,24 @@
+// Mock dependencies before importing
+jest.mock('jsonwebtoken');
+jest.mock('../../../src/core/logger.js', () => ({
+  default: {
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    debug: jest.fn(),
+  },
+}));
+jest.mock('../../../src/services/dapr.secretManager.js', () => ({
+  getJwtConfig: jest.fn().mockResolvedValue({
+    secret: 'test-secret',
+    expire: '24h',
+  }),
+}));
+
 import { authMiddleware, authorizeRoles } from '../../../src/middlewares/auth.middleware.js';
 import { createMockReqRes, createMockNext, createMockUser } from '../../shared/testHelpers.js';
 import ErrorResponse from '../../../src/core/errors.js';
 import jwt from 'jsonwebtoken';
-
-// Mock JWT for testing
-jest.mock('jsonwebtoken');
 
 describe('authMiddleware', () => {
   beforeEach(() => {
@@ -23,18 +37,27 @@ describe('authMiddleware', () => {
       const mockUser = createMockUser();
 
       jwt.verify.mockReturnValue({
-        id: mockUser._id,
+        sub: mockUser._id,
         email: mockUser.email,
         roles: mockUser.roles,
+        iss: 'auth-service',
+        aud: 'auth-service',
       });
 
       await authMiddleware(req, res, next);
+
+      // Check if next was called with an error
+      if (next.mock.calls.length > 0 && next.mock.calls[0][0]) {
+        console.log('Next called with error:', next.mock.calls[0][0]);
+      }
 
       expect(jwt.verify).toHaveBeenCalledWith('valid-token', 'test-secret');
       expect(req.user).toEqual({
         id: mockUser._id,
         email: mockUser.email,
+        name: undefined,
         roles: mockUser.roles,
+        emailVerified: false,
       });
       expect(next).toHaveBeenCalledWith();
     });
@@ -42,16 +65,18 @@ describe('authMiddleware', () => {
     it('should authenticate valid token from cookies', async () => {
       const { req, res } = createMockReqRes({
         cookies: {
-          jwt: 'valid-cookie-token',
+          token: 'valid-cookie-token',
         },
       });
       const next = createMockNext();
       const mockUser = createMockUser();
 
       jwt.verify.mockReturnValue({
-        id: mockUser._id,
+        sub: mockUser._id,
         email: mockUser.email,
         roles: mockUser.roles,
+        iss: 'auth-service',
+        aud: 'auth-service',
       });
 
       await authMiddleware(req, res, next);
@@ -60,7 +85,9 @@ describe('authMiddleware', () => {
       expect(req.user).toEqual({
         id: mockUser._id,
         email: mockUser.email,
+        name: undefined,
         roles: mockUser.roles,
+        emailVerified: false,
       });
       expect(next).toHaveBeenCalledWith();
     });
@@ -71,16 +98,18 @@ describe('authMiddleware', () => {
           authorization: 'Bearer header-token',
         },
         cookies: {
-          jwt: 'cookie-token',
+          token: 'cookie-token',
         },
       });
       const next = createMockNext();
       const mockUser = createMockUser();
 
       jwt.verify.mockReturnValue({
-        id: mockUser._id,
+        sub: mockUser._id,
         email: mockUser.email,
         roles: mockUser.roles,
+        iss: 'auth-service',
+        aud: 'auth-service',
       });
 
       await authMiddleware(req, res, next);
@@ -202,8 +231,10 @@ describe('authMiddleware', () => {
       const next = createMockNext();
 
       jwt.verify.mockReturnValue({
-        id: '123',
+        sub: '123',
         email: 'test@example.com',
+        iss: 'auth-service',
+        aud: 'auth-service',
         // no roles property
       });
 
@@ -212,7 +243,9 @@ describe('authMiddleware', () => {
       expect(req.user).toEqual({
         id: '123',
         email: 'test@example.com',
-        roles: undefined,
+        name: undefined,
+        roles: [],
+        emailVerified: false,
       });
       expect(next).toHaveBeenCalledWith();
     });
