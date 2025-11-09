@@ -1,11 +1,9 @@
-import dotenv from 'dotenv';
-dotenv.config({ quiet: true });
-
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 
-import validateConfig, { getConfig, getConfigArray } from './validators/config.validator.js';
+import { validateConfig } from './validators/config.validator.js';
+import config from './core/config.js';
 import logger from './core/logger.js';
 import authRoutes from './routes/auth.routes.js';
 import homeRoutes from './routes/home.routes.js';
@@ -13,6 +11,7 @@ import operationalRoutes from './routes/operational.routes.js';
 import { traceContextMiddleware } from './middlewares/traceContext.middleware.js';
 import { errorHandler } from './middlewares/errorHandler.middleware.js';
 
+// Validate all required environment variables exist
 validateConfig();
 
 const app = express();
@@ -27,12 +26,11 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 // CORS configuration
-const corsOrigins = getConfigArray('CORS_ORIGINS');
 app.use(
   cors({
-    origin: corsOrigins.includes('*') ? true : corsOrigins,
+    origin: config.cors.origins.includes('*') ? true : config.cors.origins,
     credentials: true,
-  }),
+  })
 );
 
 // Routes
@@ -44,13 +42,11 @@ app.use('/api/auth', authRoutes);
 app.use(errorHandler);
 
 // Start server
-const PORT = getConfig('PORT') || 3001;
-const HOST = process.env.HOST || '0.0.0.0';
-
-app.listen(PORT, HOST, () => {
-  logger.info(`Auth service running on ${HOST}:${PORT} in ${getConfig('NODE_ENV')} mode`, {
-    service: getConfig('NAME'),
-    version: getConfig('VERSION'),
+app.listen(config.service.port, config.service.host, () => {
+  const { host, port, nodeEnv, name, version } = config.service;
+  logger.info(`Auth service running on ${host}:${port} in ${nodeEnv} mode`, {
+    service: name,
+    version,
   });
 });
 
