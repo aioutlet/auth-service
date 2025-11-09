@@ -3,7 +3,7 @@
  * Centralizes all environment-based configuration (non-sensitive only)
  *
  * For sensitive secrets (JWT secrets), use:
- * - import { getJwtConfig } from '../services/dapr.secretManager.js'
+ * - import { getJwtConfig } from '../clients/index.js'
  */
 
 export default {

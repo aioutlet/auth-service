@@ -2,7 +2,7 @@ import jwt from 'jsonwebtoken';
 import { asyncHandler } from './asyncHandler.js';
 import ErrorResponse from '../core/errors.js';
 import logger from '../core/logger.js';
-import { getJwtConfig } from '../services/dapr.secretManager.js';
+import { getJwtConfig } from '../clients/index.js';
 
 // Cache JWT config to avoid repeated Dapr calls
 let _jwtConfigCache = null;

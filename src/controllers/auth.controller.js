@@ -1,11 +1,11 @@
 import bcrypt from 'bcrypt';
 import { signToken, issueJwtToken, verifyToken } from '../core/tokenManager.js';
 import { asyncHandler } from '../middlewares/asyncHandler.js';
-import { getUserByEmail, createUser, deleteUserSelf, deleteUserById } from '../services/userServiceClient.js';
+import { getUserByEmail, createUser, deleteUserSelf, deleteUserById } from '../clients/user.service.client.js';
 import authValidator from '../validators/auth.validator.js';
 import logger from '../core/logger.js';
 import ErrorResponse from '../core/errors.js';
-import { publishEvent } from '../services/dapr.client.js';
+import { publishEvent } from '../clients/dapr.service.client.js';
 
 /**
  * @desc    Log in a user with email and password
