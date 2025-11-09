@@ -12,7 +12,7 @@ async function startServer() {
     // Start the application (imports app.js after env vars are loaded)
     await import('./app.js');
   } catch (error) {
-    console.error('❌ Failed to start auth service:', error.message);
+    console.error('Failed to start auth service:', error.message);
     process.exit(1);
   }
 }

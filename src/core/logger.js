@@ -9,7 +9,7 @@ const LOG_FORMAT = process.env.LOG_FORMAT || (IS_PRODUCTION ? 'json' : 'console'
 /**
  * Console formatter for development
  */
-const consoleFormat = winston.format.printf(({ level, message, timestamp, correlationId, ...meta }) => {
+const consoleFormat = winston.format.printf(({ level, message, timestamp, traceId, spanId: _spanId, ...meta }) => {
   const colors = {
     error: '\x1b[31m',
     warn: '\x1b[33m',
@@ -19,21 +19,22 @@ const consoleFormat = winston.format.printf(({ level, message, timestamp, correl
   const reset = '\x1b[0m';
   const color = colors[level] || '';
 
-  const corrId = correlationId ? `[${correlationId}]` : '[no-correlation]';
+  const traceInfo = traceId ? `[trace:${traceId.substring(0, 8)}]` : '[no-trace]';
   const metaStr = Object.keys(meta).length > 0 ? ` | ${JSON.stringify(meta)}` : '';
 
-  return `${color}[${timestamp}] [${level.toUpperCase()}] ${NAME} ${corrId}: ${message}${metaStr}${reset}`;
+  return `${color}[${timestamp}] [${level.toUpperCase()}] ${NAME} ${traceInfo}: ${message}${metaStr}${reset}`;
 });
 
 /**
  * JSON formatter for production
  */
-const jsonFormat = winston.format.printf(({ level, message, timestamp, correlationId, ...meta }) => {
+const jsonFormat = winston.format.printf(({ level, message, timestamp, traceId, spanId, ...meta }) => {
   return JSON.stringify({
     timestamp,
     level,
     service: NAME,
-    correlationId: correlationId || null,
+    traceId: traceId || null,
+    spanId: spanId || null,
     message,
     ...meta,
   });
@@ -118,14 +119,14 @@ class Logger {
   }
 
   /**
-   * Create a logger bound to a correlation ID
+   * Create a logger bound to a trace context (traceId and spanId from Dapr)
    */
-  withCorrelationId(correlationId) {
+  withTraceContext(traceId, spanId) {
     return {
-      debug: (message, metadata = {}) => this.debug(message, { ...metadata, correlationId }),
-      info: (message, metadata = {}) => this.info(message, { ...metadata, correlationId }),
-      warn: (message, metadata = {}) => this.warn(message, { ...metadata, correlationId }),
-      error: (message, metadata = {}) => this.error(message, { ...metadata, correlationId }),
+      debug: (message, metadata = {}) => this.debug(message, { ...metadata, traceId, spanId }),
+      info: (message, metadata = {}) => this.info(message, { ...metadata, traceId, spanId }),
+      warn: (message, metadata = {}) => this.warn(message, { ...metadata, traceId, spanId }),
+      error: (message, metadata = {}) => this.error(message, { ...metadata, traceId, spanId }),
     };
   }
 }

@@ -33,7 +33,12 @@ export async function verifyToken(token) {
  * Returns the token string.
  */
 export async function issueJwtToken(req, res, user) {
-  logger.debug('Issuing JWT for user', { operation: 'issue_jwt', userId: user._id, correlationId: req.correlationId });
+  logger.debug('Issuing JWT for user', {
+    operation: 'issue_jwt',
+    userId: user._id,
+    traceId: req.traceId,
+    spanId: req.spanId,
+  });
 
   // Standard JWT claims (RFC 7519)
   const payload = {

@@ -16,33 +16,33 @@ export const login = asyncHandler(async (req, res, next) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
-    logger.warn('Login attempt missing credentials', { email, correlationId: req.correlationId });
+    logger.warn('Login attempt missing credentials', { email, traceId: req.traceId, spanId: req.spanId });
     return next(new ErrorResponse('Email and password are required', 400));
   }
 
   const user = await getUserByEmail(email);
   if (!user) {
-    logger.warn('Login failed: user not found', { email, correlationId: req.correlationId });
+    logger.warn('Login failed: user not found', { email, traceId: req.traceId, spanId: req.spanId });
     return next(new ErrorResponse('Invalid credentials', 401));
   }
 
   if (user.isActive === false) {
-    logger.warn('Login failed: account deactivated', { email, correlationId: req.correlationId });
+    logger.warn('Login failed: account deactivated', { email, traceId: req.traceId, spanId: req.spanId });
     return next(new ErrorResponse('Account is deactivated', 403));
   }
 
   if (!user.isEmailVerified) {
-    logger.warn('Login failed: email not verified', { email, correlationId: req.correlationId });
+    logger.warn('Login failed: email not verified', { email, traceId: req.traceId, spanId: req.spanId });
     return next(new ErrorResponse('Please verify your email before logging in', 403));
   }
 
   const isMatch = await bcrypt.compare(password, user.password);
   if (!isMatch) {
-    logger.warn('Login failed: invalid password', { email, correlationId: req.correlationId });
+    logger.warn('Login failed: invalid password', { email, traceId: req.traceId, spanId: req.spanId });
     return next(new ErrorResponse('Invalid credentials', 401));
   }
 
-  logger.info('User logged in', { userId: user._id, email, correlationId: req.correlationId });
+  logger.info('User logged in', { userId: user._id, email, traceId: req.traceId, spanId: req.spanId });
 
   // Issue JWT token
   const token = await issueJwtToken(req, res, user);
@@ -54,7 +54,7 @@ export const login = asyncHandler(async (req, res, next) => {
       email: user.email,
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
-      correlationId: req.correlationId,
+      traceId: req.traceId,
       timestamp: new Date().toISOString(),
       success: true,
     });
@@ -62,7 +62,8 @@ export const login = asyncHandler(async (req, res, next) => {
     logger.error('Failed to publish login event', {
       operation: 'publish_login_event',
       error,
-      correlationId: req.correlationId,
+      traceId: req.traceId,
+      spanId: req.spanId,
     });
   }
 
@@ -100,7 +101,7 @@ export const logout = asyncHandler(async (req, res) => {
     sameSite: 'strict',
   });
 
-  logger.info('User logged out successfully', { userId: req.user?.id, correlationId: req.correlationId });
+  logger.info('User logged out successfully', { userId: req.user?.id, traceId: req.traceId, spanId: req.spanId });
   res.json({ message: 'Logged out successfully' });
 });
 
@@ -136,10 +137,10 @@ export const forgotPassword = asyncHandler(async (req, res, next) => {
       resetUrl,
       expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // 1 hour
       requestIp: req.ip,
-      correlationId: req.correlationId,
+      traceId: req.traceId,
       timestamp: new Date().toISOString(),
     });
-    logger.info('Password reset event published', { email, correlationId: req.correlationId });
+    logger.info('Password reset event published', { email, traceId: req.traceId, spanId: req.spanId });
   } catch (error) {
     logger.error('Failed to publish password reset event', { email, error: error.message });
     // Don't fail the request if event publishing fails
@@ -188,7 +189,7 @@ export const resetPassword = asyncHandler(async (req, res, next) => {
       email: user.email,
       changedAt: new Date().toISOString(),
       changedIp: req.ip,
-      correlationId: req.correlationId,
+      traceId: req.traceId,
       timestamp: new Date().toISOString(),
     });
     logger.info('Password reset completed event published', { email: user.email });
@@ -351,10 +352,10 @@ export const resendVerificationEmail = asyncHandler(async (req, res, next) => {
       verificationToken: verifyToken,
       verificationUrl: verifyUrl,
       expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 1 day
-      correlationId: req.correlationId,
+      traceId: req.traceId,
       timestamp: new Date().toISOString(),
     });
-    logger.info('Email verification event published', { email, correlationId: req.correlationId });
+    logger.info('Email verification event published', { email, traceId: req.traceId, spanId: req.spanId });
   } catch (error) {
     logger.error('Failed to publish email verification event', { email, error: error.message });
     // Don't fail the request if event publishing fails
@@ -401,7 +402,8 @@ export const register = asyncHandler(async (req, res, next) => {
   logger.info('User registration started', {
     email,
     hasPhoneNumber: !!phoneNumber,
-    correlationId: req.correlationId,
+    traceId: req.traceId,
+    spanId: req.spanId,
   });
 
   // Minimal validation - only check required fields
@@ -441,7 +443,7 @@ export const register = asyncHandler(async (req, res, next) => {
         firstName,
         lastName,
         registeredAt: new Date().toISOString(),
-        correlationId: req.correlationId,
+        traceId: req.traceId,
         timestamp: new Date().toISOString(),
       });
 
@@ -455,7 +457,7 @@ export const register = asyncHandler(async (req, res, next) => {
         verificationToken: verifyToken,
         verificationUrl: verifyUrl,
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 1 day
-        correlationId: req.correlationId,
+        traceId: req.traceId,
         timestamp: new Date().toISOString(),
       });
 
@@ -463,7 +465,8 @@ export const register = asyncHandler(async (req, res, next) => {
         operation: 'publish_registration_events',
         email,
         userId: user._id,
-        correlationId: req.correlationId,
+        traceId: req.traceId,
+        spanId: req.spanId,
       });
     } catch (eventError) {
       logger.warn('Failed to publish user registration events, but registration succeeded', req, {
@@ -480,7 +483,8 @@ export const register = asyncHandler(async (req, res, next) => {
       firstName,
       lastName,
       hasPhoneNumber: !!phoneNumber,
-      correlationId: req.correlationId,
+      traceId: req.traceId,
+      spanId: req.spanId,
     });
 
     res.status(201).json({
@@ -501,7 +505,8 @@ export const register = asyncHandler(async (req, res, next) => {
       email,
       reason: error.message,
       statusCode: error.statusCode,
-      correlationId: req.correlationId,
+      traceId: req.traceId,
+      spanId: req.spanId,
     });
 
     // Handle specific error status codes
@@ -560,7 +565,7 @@ export const requestAccountReactivation = asyncHandler(async (req, res, next) =>
       reactivationToken: reactivateToken,
       reactivationUrl: reactivateUrl,
       expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // 1 hour
-      correlationId: req.correlationId,
+      traceId: req.traceId,
       timestamp: new Date().toISOString(),
     });
     logger.info('Account reactivation event published', { email });

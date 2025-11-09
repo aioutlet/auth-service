@@ -30,7 +30,9 @@ export default {
   },
 
   observability: {
-    correlationIdHeader: process.env.CORRELATION_ID_HEADER || 'x-correlation-id',
+    // W3C Trace Context headers (managed by Dapr)
+    traceContextHeader: 'traceparent',
+    traceIdHeader: 'X-Trace-ID', // Custom header for response debugging
   },
 
   dapr: {

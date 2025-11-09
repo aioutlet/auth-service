@@ -10,6 +10,14 @@ spec:
   # Disable actor placement since auth-service doesn't use actors
   mtls:
     enabled: false
-  # Optional: Tracing configuration (Zipkin not running)
+  # Tracing configuration - Dapr automatically propagates W3C Trace Context
   tracing:
-    samplingRate: '0'
+    samplingRate: '1' # Sample 100% of traces (adjust for production)
+    # For development, traces can be exported to Zipkin
+    # zipkin:
+    #   endpointAddress: 'http://localhost:9411/api/v2/spans'
+    # For Azure Application Insights, use:
+    # otel:
+    #   endpointAddress: "https://<your-app-insights>.applicationinsights.azure.com/v1/traces"
+    #   isSecure: true
+    #   protocol: "http"

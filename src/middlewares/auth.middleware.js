@@ -55,7 +55,8 @@ const authMiddleware = asyncHandler(async (req, res, next) => {
     logger.warn('Auth middleware - JWT verification failed', {
       error: error.message,
       errorName: error.name,
-      correlationId: req.correlationId,
+      traceId: req.traceId,
+      spanId: req.spanId,
     });
     // Pass the original JWT error to centralized error handler
     // The errorHandler middleware will handle TokenExpiredError, JsonWebTokenError, etc.

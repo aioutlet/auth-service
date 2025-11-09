@@ -157,33 +157,33 @@ export async function publishEvent(topicName, eventData) {
       source: 'auth-service',
       data: eventData,
       metadata: {
-        correlationId: eventData.correlationId || generateEventId(),
+        traceId: eventData.traceId || generateEventId(),
         version: '1.0',
       },
     };
 
-    logger.debug('Publishing event via Dapr', null, {
+    logger.debug('Publishing event via Dapr', {
       operation: 'dapr_pubsub',
       topicName,
       eventId: event.eventId,
-      correlationId: event.metadata.correlationId,
+      traceId: event.metadata.traceId,
     });
 
     await daprClient.pubsub.publish(DAPR_PUBSUB_NAME, topicName, event);
 
-    logger.info('Event published successfully', null, {
+    logger.info('Event published successfully', {
       operation: 'dapr_pubsub',
       topicName,
       eventId: event.eventId,
-      correlationId: event.metadata.correlationId,
+      traceId: event.metadata.traceId,
     });
   } catch (error) {
-    logger.error('Failed to publish event via Dapr', null, {
+    logger.error('Failed to publish event via Dapr', {
       operation: 'dapr_pubsub',
       topicName,
       error: error.message,
       errorStack: error.stack,
-      correlationId: eventData?.correlationId,
+      traceId: eventData?.traceId,
     });
     // Don't throw - graceful degradation (app continues even if event publishing fails)
   }
