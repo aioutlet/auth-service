@@ -13,11 +13,8 @@ spec:
   # Tracing configuration - Dapr automatically propagates W3C Trace Context
   tracing:
     samplingRate: '1' # Sample 100% of traces (adjust for production)
-    # For development, traces can be exported to Zipkin
-    # zipkin:
-    #   endpointAddress: 'http://localhost:9411/api/v2/spans'
-    # For Azure Application Insights, use:
-    # otel:
-    #   endpointAddress: "https://<your-app-insights>.applicationinsights.azure.com/v1/traces"
-    #   isSecure: true
-    #   protocol: "http"
+    # OpenTelemetry (OTLP) - Modern tracing protocol
+    otel:
+      endpointAddress: 'http://localhost:4318'
+      isSecure: false
+      protocol: 'http'
