@@ -25,8 +25,8 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 // Routes
+app.use('/', homeRoutes);
 app.use('/', operationalRoutes);
-app.use('/api/home', homeRoutes);
 app.use('/api/auth', authRoutes);
 
 // Centralized error handler (must be last)

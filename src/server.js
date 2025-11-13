@@ -13,6 +13,8 @@ async function startServer() {
     await import('./app.js');
   } catch (error) {
     console.error('Failed to start auth service:', error.message);
+    console.error('Full error:', error);
+    console.error('Stack:', error.stack);
     process.exit(1);
   }
 }

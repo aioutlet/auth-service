@@ -1,18 +1,17 @@
 export default {
-  transform: {
-    '^.+\\.js$': 'babel-jest',
-  },
   testEnvironment: 'node',
   setupFilesAfterEnv: ['<rootDir>/tests/setup.js'],
   setupFiles: ['<rootDir>/tests/setupEnv.js'],
+  testMatch: ['**/tests/**/*.test.js'],
   collectCoverageFrom: [
     'src/**/*.js',
+    '!src/**/*.test.js',
     '!src/server.js',
-    '!src/tracing-init.js',
-    '!src/config/**',
-    '!src/observability/**',
   ],
-  testMatch: ['**/__tests__/**/*.js', '**/?(*.)+(spec|test).js'],
-  testTimeout: 30000, // 30 seconds for integration tests
-  maxWorkers: 1, // Run integration tests serially to avoid conflicts
+  coverageDirectory: 'coverage',
+  coverageReporters: ['text', 'lcov', 'html'],
+  moduleFileExtensions: ['js', 'json'],
+  testTimeout: 10000,
+  transform: {},
+  testPathIgnorePatterns: ['/node_modules/', '/tests/fixtures/(?!.*\\.test\\.js$)'],
 };

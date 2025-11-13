@@ -1,4 +1,4 @@
-import { invokeService } from './dapr.client.js';
+import { invokeService } from './dapr.service.client.js';
 import logger from '../core/logger.js';
 
 const DAPR_USER_SERVICE_APP_ID = process.env.DAPR_USER_SERVICE_APP_ID || 'user-service';
@@ -78,3 +78,11 @@ export async function getUserById(id, token) {
     return null;
   }
 }
+
+export default {
+  getUserByEmail,
+  createUser,
+  deleteUserSelf,
+  deleteUserById,
+  getUserById,
+};

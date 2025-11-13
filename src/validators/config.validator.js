@@ -37,14 +37,12 @@ const validationRules = {
   },
 
   // Security Configuration (JWT managed by Dapr Secret Manager)
+  // JWT Configuration
   JWT_SECRET: {
     required: false, // Optional: Dapr Secret Manager handles this, falls back to env var
     validator: (value) => !value || value.length >= 32,
     errorMessage: 'JWT_SECRET must be at least 32 characters long if provided',
   },
-
-  // JWT Configuration
-  JWT_SECRET: {
 
   // Service Discovery (Dapr)
   DAPR_USER_SERVICE_APP_ID: {
