@@ -1,5 +1,4 @@
 import express from 'express';
-import cors from 'cors';
 import cookieParser from 'cookie-parser';
 
 import { validateConfig } from './validators/config.validator.js';
@@ -24,14 +23,6 @@ app.use(traceContextMiddleware);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
-
-// CORS configuration
-app.use(
-  cors({
-    origin: config.cors.origins.includes('*') ? true : config.cors.origins,
-    credentials: true,
-  })
-);
 
 // Routes
 app.use('/', operationalRoutes);

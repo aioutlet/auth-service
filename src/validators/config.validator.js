@@ -43,28 +43,8 @@ const validationRules = {
     errorMessage: 'JWT_SECRET must be at least 32 characters long if provided',
   },
 
-  // CORS Configuration
-  CORS_ORIGINS: {
-    required: true,
-    validator: (value) => {
-      if (!value) {
-        return false;
-      }
-      const origins = value.split(',').map((o) => o.trim());
-      return origins.every((origin) => {
-        if (origin === '*') {
-          return true;
-        }
-        try {
-          new URL(origin);
-          return true;
-        } catch {
-          return false;
-        }
-      });
-    },
-    errorMessage: 'CORS_ORIGINS must be a comma-separated list of valid URLs or *',
-  },
+  // JWT Configuration
+  JWT_SECRET: {
 
   // Service Discovery (Dapr)
   DAPR_USER_SERVICE_APP_ID: {

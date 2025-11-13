@@ -10,15 +10,9 @@ export default {
   service: {
     name: process.env.NAME || 'auth-service',
     version: process.env.VERSION || '1.0.0',
-    port: parseInt(process.env.PORT, 10) || 3001,
+    port: parseInt(process.env.PORT, 10) || 1004,
     host: process.env.HOST || '0.0.0.0',
     nodeEnv: process.env.NODE_ENV || 'development',
-  },
-
-  cors: {
-    origins: process.env.CORS_ORIGINS
-      ? process.env.CORS_ORIGINS.split(',')
-      : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3010'],
   },
 
   logging: {
