@@ -3,18 +3,11 @@ kind: Configuration
 metadata:
   name: auth-service-config
 spec:
-  # Suppress scheduler warnings for services that don't use scheduling features
   features:
     - name: SchedulerReminders
       enabled: false
-  # Disable actor placement since auth-service doesn't use actors
-  mtls:
-    enabled: false
-  # Tracing configuration - Dapr automatically propagates W3C Trace Context
   tracing:
-    samplingRate: '1' # Sample 100% of traces (adjust for production)
-    # OpenTelemetry (OTLP) - Modern tracing protocol
-    # Sends to OTEL Collector which exports to Jaeger for visualization
+    samplingRate: '1'
     otel:
       endpointAddress: 'localhost:4318'
       isSecure: false
