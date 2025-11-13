@@ -1,0 +1,80 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Kill Port 1004",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-Command",
+        "$proc = Get-NetTCPConnection -LocalPort 1004 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique; if ($proc) { Stop-Process -Id $proc -Force; Write-Host 'Killed process on port 1004' } else { Write-Host 'Port 1004 is free' }; Get-Process -Name daprd -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; Write-Host 'Cleaned up Dapr processes'"
+      ],
+      "presentation": {
+        "echo": false,
+        "reveal": "silent",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": false,
+        "clear": false
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Start Dapr Sidecar",
+      "type": "shell",
+      "command": "dapr",
+      "args": [
+        "run",
+        "--app-id", "auth-service",
+        "--app-port", "1004",
+        "--dapr-http-port", "3504",
+        "--dapr-grpc-port", "50004",
+        "--resources-path", ".dapr/components",
+        "--config", ".dapr/config.yaml",
+        "--log-level", "warn"
+      ],
+      "isBackground": true,
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "dedicated",
+        "showReuseMessage": false,
+        "clear": false
+      },
+      "problemMatcher": {
+        "pattern": [
+          {
+            "regexp": ".",
+            "file": 1,
+            "location": 2,
+            "message": 3
+          }
+        ],
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*Starting Dapr.*",
+          "endsPattern": ".*(You're up and running|Dapr initialized|dapr initialized).*"
+        }
+      }
+    },
+    {
+      "label": "Stop Dapr Sidecar",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-Command",
+        "Get-Process -Name daprd -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; Write-Host 'Stopped Dapr sidecar processes'"
+      ],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": false,
+        "clear": false
+      },
+      "problemMatcher": []
+    }
+  ]
+}

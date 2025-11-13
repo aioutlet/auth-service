@@ -36,8 +36,7 @@ export default {
   },
 
   dapr: {
-    enabled: process.env.DAPR_ENABLED === 'true',
-    httpPort: parseInt(process.env.DAPR_HTTP_PORT, 10) || 3500,
+    httpPort: parseInt(process.env.DAPR_HTTP_PORT, 10) || 3504,
     host: process.env.DAPR_HOST || 'localhost',
     pubsubName: process.env.DAPR_PUBSUB_NAME || 'auth-pubsub',
     appId: process.env.DAPR_APP_ID || 'auth-service',
@@ -45,7 +44,7 @@ export default {
 
   services: {
     userService: {
-      appId: process.env.USER_SERVICE_APP_ID || 'user-service',
+      appId: process.env.DAPR_USER_SERVICE_APP_ID || 'user-service',
     },
     webUI: {
       baseUrl: process.env.WEB_UI_BASE_URL || 'http://localhost:3000',

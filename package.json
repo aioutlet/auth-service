@@ -24,7 +24,7 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "dapr": "cross-env DAPR_ENABLED=true dotenv -e .env -- dapr run --app-id auth-service --app-port 3001 --dapr-http-port 3500 --dapr-grpc-port 50001 --log-level warn --config ./.dapr/config.yaml --resources-path ./.dapr/components -- node src/server.js",
+    "dapr": "dotenv -e .env -- dapr run --app-id auth-service --app-port 1004 --dapr-http-port 3504 --dapr-grpc-port 50004 --log-level warn --config ./.dapr/config.yaml --resources-path ./.dapr/components -- node src/server.js",
     "test": "jest",
     "test:unit": "jest tests/unit",
     "test:integration": "jest tests/integration --runInBand",

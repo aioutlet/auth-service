@@ -1,21 +1,54 @@
 import logger from '../core/logger.js';
 
-const DAPR_ENABLED = process.env.DAPR_ENABLED === 'true';
 const DAPR_HOST = process.env.DAPR_HOST || 'localhost';
-const DAPR_HTTP_PORT = process.env.DAPR_HTTP_PORT || '3500';
+const DAPR_HTTP_PORT = process.env.DAPR_HTTP_PORT || '3504';
 const DAPR_PUBSUB_NAME = process.env.DAPR_PUBSUB_NAME || 'auth-pubsub';
 
-// Service URL mapping for direct HTTP calls (when DAPR_ENABLED=false)
+// Service URL mapping for direct HTTP calls (fallback when Dapr not available)
 const SERVICE_URLS = {
-  'user-service': process.env.USER_SERVICE_URL || 'http://localhost:3002',
-  'product-service': process.env.PRODUCT_SERVICE_URL || 'http://localhost:8003',
+  'user-service': process.env.USER_SERVICE_URL || 'http://localhost:1002',
+  'product-service': process.env.PRODUCT_SERVICE_URL || 'http://localhost:1001',
   'order-service': process.env.ORDER_SERVICE_URL || 'http://localhost:5001',
 };
 
-// Lazy load Dapr client only if enabled
+// Lazy load Dapr client
 let daprClient = null;
+let daprAvailable = null;
+
+/**
+ * Check if Dapr sidecar is available
+ */
+async function checkDaprAvailability() {
+  if (daprAvailable !== null) {
+    return daprAvailable;
+  }
+
+  try {
+    const response = await fetch(`http://${DAPR_HOST}:${DAPR_HTTP_PORT}/v1.0/healthz`, {
+      method: 'GET',
+      signal: AbortSignal.timeout(500),
+    });
+
+    daprAvailable = response.status === 204;
+    logger.info(`Dapr health check result: ${daprAvailable}`, {
+      event: 'dapr_health_check_result',
+      available: daprAvailable,
+      status: response.status,
+    });
+
+    return daprAvailable;
+  } catch (error) {
+    daprAvailable = false;
+    logger.info(`Dapr not available: ${error.message}`, {
+      event: 'dapr_health_check_failed',
+      error: error.message,
+    });
+    return false;
+  }
+}
+
 async function getDaprClient() {
-  if (!daprClient && DAPR_ENABLED) {
+  if (!daprClient) {
     const { DaprClient, CommunicationProtocolEnum } = await import('@dapr/dapr');
     daprClient = new DaprClient({
       daprHost: DAPR_HOST,
@@ -36,7 +69,9 @@ async function getDaprClient() {
  * @returns {Promise<object>} - The response from the service
  */
 export async function invokeService(appId, methodName, httpMethod = 'GET', data = null, metadata = {}) {
-  if (DAPR_ENABLED) {
+  const isDaprAvailable = await checkDaprAvailability();
+  
+  if (isDaprAvailable) {
     return invokeDaprService(appId, methodName, httpMethod, data, metadata);
   } else {
     return invokeDirectHttp(appId, methodName, httpMethod, data, metadata);
@@ -140,8 +175,6 @@ async function invokeDirectHttp(appId, methodName, httpMethod, data, metadata) {
     });
     throw error;
   }
-}
-
 /**
  * Publish an event to a topic via Dapr pub/sub
  * @param {string} topicName - The topic to publish to
@@ -149,6 +182,16 @@ async function invokeDirectHttp(appId, methodName, httpMethod, data, metadata) {
  * @returns {Promise<void>}
  */
 export async function publishEvent(topicName, eventData) {
+  const isDaprAvailable = await checkDaprAvailability();
+  
+  if (!isDaprAvailable) {
+    logger.warn('Dapr not available, skipping event publish', {
+      operation: 'dapr_pubsub',
+      topicName,
+    });
+    return;
+  }
+
   try {
     const event = {
       eventId: generateEventId(),
@@ -169,7 +212,8 @@ export async function publishEvent(topicName, eventData) {
       traceId: event.metadata.traceId,
     });
 
-    await daprClient.pubsub.publish(DAPR_PUBSUB_NAME, topicName, event);
+    const client = await getDaprClient();
+    await client.pubsub.publish(DAPR_PUBSUB_NAME, topicName, event);
 
     logger.info('Event published successfully', {
       operation: 'dapr_pubsub',
@@ -186,6 +230,8 @@ export async function publishEvent(topicName, eventData) {
       traceId: eventData?.traceId,
     });
     // Don't throw - graceful degradation (app continues even if event publishing fails)
+  }
+}   // Don't throw - graceful degradation (app continues even if event publishing fails)
   }
 }
 

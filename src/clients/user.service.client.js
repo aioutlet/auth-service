@@ -1,12 +1,12 @@
 import { invokeService } from './dapr.client.js';
 import logger from '../core/logger.js';
 
-const USER_SERVICE_APP_ID = process.env.USER_SERVICE_APP_ID || 'user-service';
+const DAPR_USER_SERVICE_APP_ID = process.env.DAPR_USER_SERVICE_APP_ID || 'user-service';
 
 export async function getUserByEmail(email) {
   try {
     const response = await invokeService(
-      USER_SERVICE_APP_ID,
+      DAPR_USER_SERVICE_APP_ID,
       `api/users/findByEmail?email=${encodeURIComponent(email)}`,
       'GET'
     );
@@ -23,7 +23,7 @@ export async function getUserByEmail(email) {
 
 export async function createUser(userData) {
   try {
-    const response = await invokeService(USER_SERVICE_APP_ID, 'api/users', 'POST', userData);
+    const response = await invokeService(DAPR_USER_SERVICE_APP_ID, 'api/users', 'POST', userData);
     return response;
   } catch (error) {
     logger.error('createUser error', null, {
@@ -45,7 +45,7 @@ export async function createUser(userData) {
 
 export async function deleteUserSelf(token) {
   try {
-    await invokeService(USER_SERVICE_APP_ID, 'api/users', 'DELETE', null, {
+    await invokeService(DAPR_USER_SERVICE_APP_ID, 'api/users', 'DELETE', null, {
       headers: { Authorization: `Bearer ${token}` },
     });
     return true;
@@ -57,7 +57,7 @@ export async function deleteUserSelf(token) {
 
 export async function deleteUserById(id, token) {
   try {
-    await invokeService(USER_SERVICE_APP_ID, `api/users/${id}`, 'DELETE', null, {
+    await invokeService(DAPR_USER_SERVICE_APP_ID, `api/users/${id}`, 'DELETE', null, {
       headers: { Authorization: `Bearer ${token}` },
     });
     return true;
@@ -69,7 +69,7 @@ export async function deleteUserById(id, token) {
 
 export async function getUserById(id, token) {
   try {
-    const response = await invokeService(USER_SERVICE_APP_ID, `api/admin/users/${id}`, 'GET', null, {
+    const response = await invokeService(DAPR_USER_SERVICE_APP_ID, `api/admin/users/${id}`, 'GET', null, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     return response;

@@ -66,11 +66,11 @@ const validationRules = {
     errorMessage: 'CORS_ORIGINS must be a comma-separated list of valid URLs or *',
   },
 
-  // Service Discovery
-  USER_SERVICE_APP_ID: {
+  // Service Discovery (Dapr)
+  DAPR_USER_SERVICE_APP_ID: {
     required: true,
     validator: (value) => value && value.length > 0,
-    errorMessage: 'USER_SERVICE_APP_ID must be a non-empty string',
+    errorMessage: 'DAPR_USER_SERVICE_APP_ID must be a non-empty string',
   },
 
   // Logging Configuration
