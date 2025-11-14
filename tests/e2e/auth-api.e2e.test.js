@@ -7,8 +7,8 @@
 // Note: These are genuine dependencies for enterprise-grade auth functionality
 
 import axios from 'axios';
-import { registerUser, login } from '../../shared/helpers/auth.js';
-import { generateTestUser, deleteUser, sleep } from '../../shared/helpers/user.js';
+import { registerUser, login } from '../shared/helpers/auth.js';
+import { generateTestUser, deleteUser, sleep } from '../shared/helpers/user.js';
 
 const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL || 'http://localhost:3001';
 const AUTH_SERVICE_HEALTH_URL = process.env.AUTH_SERVICE_HEALTH_URL || 'http://localhost:3001/health';

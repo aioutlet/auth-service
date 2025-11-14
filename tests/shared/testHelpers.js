@@ -2,8 +2,8 @@
  * Test helper functions for creating mock objects
  */
 
-export function createMockReqRes() {
-  const req = {
+export function createMockReqRes(overrides = {}) {
+  const defaultReq = {
     body: {},
     params: {},
     query: {},
@@ -14,6 +14,24 @@ export function createMockReqRes() {
     originalUrl: '/test',
     get: jest.fn(),
     correlationId: 'test-correlation-id',
+  };
+
+  // Deep merge specific properties if provided
+  const mergedBody = { ...defaultReq.body, ...overrides.body };
+  const mergedParams = { ...defaultReq.params, ...overrides.params };
+  const mergedQuery = { ...defaultReq.query, ...overrides.query };
+  const mergedHeaders = { ...defaultReq.headers, ...overrides.headers };
+  const mergedCookies = { ...defaultReq.cookies, ...overrides.cookies };
+
+  const req = {
+    ...defaultReq,
+    ...overrides,
+    // Override with merged versions
+    body: mergedBody,
+    params: mergedParams,
+    query: mergedQuery,
+    headers: mergedHeaders,
+    cookies: mergedCookies,
   };
 
   const res = {

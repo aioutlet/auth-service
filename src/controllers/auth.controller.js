@@ -391,6 +391,70 @@ export const verify = asyncHandler((req, res) => {
 });
 
 /**
+ * @desc    Refresh JWT token
+ * @route   POST /auth/refresh
+ * @access  Private
+ */
+export const refreshToken = asyncHandler(async (req, res, next) => {
+  // Extract current token from request
+  let token = null;
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+    token = req.headers.authorization.split(' ')[1];
+  } else if (req.cookies && req.cookies.token) {
+    token = req.cookies.token;
+  }
+
+  if (!token) {
+    return next(new ErrorResponse('No token provided', 401));
+  }
+
+  try {
+    // Verify the current token (even if expired, we'll issue a new one)
+    const payload = await verifyToken(token);
+    if (!payload) {
+      return next(new ErrorResponse('Invalid token', 401));
+    }
+
+    // Get user from user service to ensure they still exist and are active
+    const user = await getUserByEmail(payload.email);
+    if (!user) {
+      return next(new ErrorResponse('User not found', 404));
+    }
+
+    if (!user.isActive) {
+      return next(new ErrorResponse('Account is deactivated', 403));
+    }
+
+    // Issue new JWT token
+    const newToken = await issueJwtToken(req, res, user);
+
+    logger.info('Token refreshed', { userId: user._id, email: user.email, correlationId: req.correlationId });
+
+    res.json({
+      success: true,
+      token: newToken,
+      user: {
+        _id: user._id,
+        id: user._id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        name: user.name || `${user.firstName} ${user.lastName}`.trim(),
+        roles: user.roles,
+        isEmailVerified: user.isEmailVerified,
+        isActive: user.isActive,
+      },
+    });
+  } catch (error) {
+    logger.error('Token refresh failed', {
+      error: error.message,
+      correlationId: req.correlationId,
+    });
+    return next(new ErrorResponse('Token refresh failed', 401));
+  }
+});
+
+/**
  * @desc    Register a new user
  * @route   POST /auth/register
  * @access  Public
