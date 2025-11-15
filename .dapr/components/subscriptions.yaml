@@ -5,7 +5,7 @@ metadata:
 spec:
   topic: auth.login
   route: /events/auth/login
-  pubsubname: auth-pubsub
+  pubsubname: event-bus
 scopes:
   - audit-service
 ---
@@ -16,7 +16,7 @@ metadata:
 spec:
   topic: auth.user.registered
   route: /events/auth/user-registered
-  pubsubname: auth-pubsub
+  pubsubname: event-bus
 scopes:
   - audit-service
   - notification-service
@@ -28,7 +28,7 @@ metadata:
 spec:
   topic: auth.password.reset.requested
   route: /events/auth/password-reset-requested
-  pubsubname: auth-pubsub
+  pubsubname: event-bus
 scopes:
   - notification-service
 ---
@@ -39,7 +39,7 @@ metadata:
 spec:
   topic: auth.password.reset.completed
   route: /events/auth/password-reset-completed
-  pubsubname: auth-pubsub
+  pubsubname: event-bus
 scopes:
   - audit-service
 ---
@@ -50,7 +50,7 @@ metadata:
 spec:
   topic: auth.email.verification.requested
   route: /events/auth/email-verification-requested
-  pubsubname: auth-pubsub
+  pubsubname: event-bus
 scopes:
   - notification-service
 ---
@@ -61,6 +61,6 @@ metadata:
 spec:
   topic: auth.account.reactivation.requested
   route: /events/auth/account-reactivation-requested
-  pubsubname: auth-pubsub
+  pubsubname: event-bus
 scopes:
   - notification-service

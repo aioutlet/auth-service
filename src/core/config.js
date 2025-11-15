@@ -32,7 +32,7 @@ export default {
   dapr: {
     httpPort: parseInt(process.env.DAPR_HTTP_PORT, 10) || 3504,
     host: process.env.DAPR_HOST || 'localhost',
-    pubsubName: process.env.DAPR_PUBSUB_NAME || 'auth-pubsub',
+    pubsubName: process.env.DAPR_PUBSUB_NAME || 'event-bus',
     appId: process.env.DAPR_APP_ID || 'auth-service',
   },
 

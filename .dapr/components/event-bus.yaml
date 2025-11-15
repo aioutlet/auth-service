@@ -1,35 +1,38 @@
 apiVersion: dapr.io/v1alpha1
 kind: Component
 metadata:
-  name: auth-pubsub
+  name: event-bus
 spec:
   type: pubsub.rabbitmq
   version: v1
   metadata:
-    # RabbitMQ connection using connectionString (recommended)
+    # RabbitMQ connection string
     - name: connectionString
       value: 'amqp://admin:admin123@127.0.0.1:5672'
+    # Consumer ID for this service instance
     - name: consumerID
       value: 'auth-service'
+    # Message durability
     - name: durable
       value: 'true'
     - name: deletedWhenUnused
       value: 'false'
+    # Delivery configuration
     - name: autoAck
       value: 'false'
     - name: deliveryMode
       value: '2' # Persistent messages
     - name: requeueInFailure
       value: 'true'
+    # Performance tuning
     - name: prefetchCount
       value: '10'
     - name: reconnectWait
       value: '5'
     - name: concurrency
       value: 'parallel'
-    # Exchange configuration
+    # Exchange configuration - single shared exchange for all events
     - name: exchangeKind
       value: 'topic'
 scopes:
   - auth-service
-  - audit-service

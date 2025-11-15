@@ -3,7 +3,7 @@ import logger from '../core/logger.js';
 
 const DAPR_HOST = process.env.DAPR_HOST || 'localhost';
 const DAPR_HTTP_PORT = process.env.DAPR_HTTP_PORT || '3504';
-const DAPR_PUBSUB_NAME = process.env.DAPR_PUBSUB_NAME || 'auth-pubsub';
+const DAPR_PUBSUB_NAME = process.env.DAPR_PUBSUB_NAME || 'event-bus';
 
 // Initialize Dapr client
 const daprClient = new DaprClient({
