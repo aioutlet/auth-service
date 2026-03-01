@@ -1,5 +1,5 @@
 import logger from '../core/logger.js';
-import { resolve as resolveService } from '../core/serviceResolver.js';
+import { resolveAsync } from '../core/serviceResolver.js';
 import { getMessagingProvider } from '../messaging/index.js';
 
 // Service invocation mode (independent from messaging)
@@ -48,7 +48,7 @@ export async function invokeService(serviceName, methodName, httpMethod = 'GET',
       });
     } else {
       // Direct HTTP call — resolved via serviceResolver
-      const baseUrl = resolveService(serviceName);
+      const baseUrl = await resolveAsync(serviceName);
       url = `${baseUrl}/${cleanMethodName}`;
 
       logger.debug('Invoking service via HTTP', {
