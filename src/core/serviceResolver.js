@@ -10,6 +10,8 @@
  * In Dapr mode, the Dapr sidecar handles service discovery natively.
  */
 
+import logger from './logger.js';
+
 /**
  * Static port registry for local development.
  * Maps service app-id → localhost port.
@@ -44,25 +46,38 @@ const CACHE_TTL_MS = 30_000;
  * @returns {Promise<string|null>}
  */
 async function queryConsul(appId) {
-  if (!CONSUL_URL) return null;
+  if (!CONSUL_URL) {
+    return null;
+  }
 
   const cached = consulCache.get(appId);
-  if (cached && Date.now() < cached.expiresAt) return cached.url;
+  if (cached && Date.now() < cached.expiresAt) {
+    logger.debug(`[ServiceResolver] Consul cache hit: ${appId} → ${cached.url}`);
+    return cached.url;
+  }
 
   try {
     const res = await fetch(`${CONSUL_URL}/v1/health/service/${appId}?passing=true`);
-    if (!res.ok) return null;
+    if (!res.ok) {
+      logger.debug(`[ServiceResolver] Consul HTTP ${res.status} for ${appId}`);
+      return null;
+    }
 
     const entries = await res.json();
-    if (!entries || entries.length === 0) return null;
+    if (!entries || entries.length === 0) {
+      logger.debug(`[ServiceResolver] Consul has no healthy instances for ${appId}`);
+      return null;
+    }
 
     const svc = entries[0].Service;
     const address = svc.Address || 'localhost';
     const url = `http://${address}:${svc.Port}`;
 
+    logger.info(`[ServiceResolver] Consul resolved ${appId} → ${url}`);
     consulCache.set(appId, { url, expiresAt: Date.now() + CACHE_TTL_MS });
     return url;
-  } catch {
+  } catch (err) {
+    logger.debug(`[ServiceResolver] Consul unavailable for ${appId}: ${err.message}`);
     return null;
   }
 }
@@ -73,13 +88,23 @@ async function queryConsul(appId) {
  * @returns {Promise<string>}
  */
 export async function resolveAsync(appId) {
-  if (SERVICE_BASE_URL) return SERVICE_BASE_URL.replace('{name}', appId);
+  if (SERVICE_BASE_URL) {
+    const url = SERVICE_BASE_URL.replace('{name}', appId);
+    logger.debug(`[ServiceResolver] SERVICE_BASE_URL resolved ${appId} → ${url}`);
+    return url;
+  }
 
   const consulUrl = await queryConsul(appId);
-  if (consulUrl) return consulUrl;
+  if (consulUrl) {
+    return consulUrl;
+  }
 
   const port = PORT_REGISTRY[appId];
-  if (port) return `http://localhost:${port}`;
+  if (port) {
+    const url = `http://localhost:${port}`;
+    logger.info(`[ServiceResolver] PORT_REGISTRY fallback: ${appId} → ${url}`);
+    return url;
+  }
 
   throw new Error(`[ServiceResolver] Unknown service: '${appId}'. Add it to PORT_REGISTRY or set SERVICE_BASE_URL.`);
 }
@@ -90,13 +115,19 @@ export async function resolveAsync(appId) {
  * @returns {string}
  */
 export function resolve(appId) {
-  if (SERVICE_BASE_URL) return SERVICE_BASE_URL.replace('{name}', appId);
+  if (SERVICE_BASE_URL) {
+    return SERVICE_BASE_URL.replace('{name}', appId);
+  }
 
   const cached = consulCache.get(appId);
-  if (cached && Date.now() < cached.expiresAt) return cached.url;
+  if (cached && Date.now() < cached.expiresAt) {
+    return cached.url;
+  }
 
   const port = PORT_REGISTRY[appId];
-  if (port) return `http://localhost:${port}`;
+  if (port) {
+    return `http://localhost:${port}`;
+  }
 
   throw new Error(`[ServiceResolver] Unknown service: '${appId}'. Add it to PORT_REGISTRY or set SERVICE_BASE_URL.`);
 }
