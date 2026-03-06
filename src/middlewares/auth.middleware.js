@@ -14,6 +14,11 @@ async function getCachedJwtConfig() {
   return _jwtConfigCache;
 }
 
+// Export cache clearing function for testing
+export function clearJwtConfigCache() {
+  _jwtConfigCache = null;
+}
+
 /**
  * Middleware for JWT authentication in the auth service.
  * Checks for a JWT in the Authorization header or cookies, verifies it, and attaches user info to req.user.
